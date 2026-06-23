@@ -1,0 +1,56 @@
+{
+  "$schema": "https://www.schemastore.org/package.json",
+  "name": "scaffold",
+  "version": "0.1.1",
+  "description": "Language-agnostic baseline template for new kirchDev repositories.",
+  "keywords": [
+    "commitlint",
+    "conventional-commits",
+    "dependabot",
+    "github-template",
+    "husky",
+    "kirchdev",
+    "nodejs",
+    "oxfmt",
+    "oxlint",
+    "pnpm",
+    "release-please",
+    "scaffold",
+    "template"
+  ],
+  "homepage": "https://github.com/TitusKirch/scaffold#readme",
+  "bugs": {
+    "url": "https://github.com/TitusKirch/scaffold/issues"
+  },
+  "license": "MIT",
+  "author": "Titus Kirch <titus.kirch@kirch.dev>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TitusKirch/scaffold.git"
+  },
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint . --deny-warnings",
+    "lint:fix": "oxlint . --fix --deny-warnings",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "check": "pnpm lint && pnpm format",
+    "check:fix": "pnpm lint:fix && pnpm format:fix",
+    "taze": "taze",
+    "taze:w": "taze -w",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
+    "oxfmt": "0.51.0",
+    "oxlint": "1.66.0",
+    "taze": "^19.13.0"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.2.2"
+}

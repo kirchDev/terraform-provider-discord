@@ -1,0 +1,14 @@
+{
+  "semi": true,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "printWidth": 80,
+  "trailingComma": "none",
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "CHANGELOG.md",
+    "pnpm-lock.yaml",
+    "README.md"
+  ]
+}

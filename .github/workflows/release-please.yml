@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Run release-please
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Release App PEM from Bitwarden
+        uses: bitwarden/sm-action@27c0c9dcab679d7250dbab91227c85b49ffa5e0f # v3.0.0
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          cloud_region: eu
+          secrets: |
+            29f8317d-29f7-46af-834b-b4550012d477 > KIRCHDEV_RELEASE_APP_PEM
+
+      - name: Mint Release App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: 'Iv23li3hNqtsZ8fDlwqH'
+          private-key: ${{ env.KIRCHDEV_RELEASE_APP_PEM }}
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TitusKirch/skills/main/tituskirch-skills.schema.json",
+  "language": "en",
+  "pr": {
+    "backend": "github",
+    "base": "dev",
+    "title": {
+      "convention": "conventional"
+    }
+  },
+  "issue": {
+    "backend": "github",
+    "title": {
+      "convention": "plain"
+    },
+    "labels": {
+      "exclude": ["stack:*", "autorelease:*", "dependencies"]
+    },
+    "github": {
+      "template": null
+    }
+  },
+  "docs": {
+    "preset": "library"
+  }
+}

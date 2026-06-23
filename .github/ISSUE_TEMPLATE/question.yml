@@ -1,0 +1,16 @@
+name: ❓ Question
+description: Ask a question about template usage or configuration
+labels: ['question', 'triage']
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Configs, commands, docs you've already looked at.

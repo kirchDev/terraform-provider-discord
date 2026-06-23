@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Dev PR
+
+on:
+  push:
+    branches:
+      - dev
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-pr:
+    name: Open or update dev → main PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure draft PR exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          existing=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            echo "PR #$existing already open — push updated it automatically."
+            exit 0
+          fi
+          gh pr create \
+            --base main \
+            --head dev \
+            --draft \
+            --title "chore: merge dev into main" \
+            --body "Automated rollup PR for changes accumulated on \`dev\`. Mark ready when you want release-please to pick it up — and **use a merge commit, not squash**, so individual \`feat:\`/\`fix:\` commits stay visible to release-please."
