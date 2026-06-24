@@ -32,6 +32,7 @@ resource "discord_news_channel" "announcements" {
 ### Optional
 
 - `category` (String) Snowflake ID of the parent category channel.
+- `default_auto_archive_duration` (Number) Default minutes of inactivity before threads in this channel are archived (60, 1440, 4320 or 10080).
 - `nsfw` (Boolean) Whether the channel is age-restricted.
 - `position` (Number) Sorting position of the channel.
 - `sync_perms_with_category` (Boolean) When true, the channel's permission overwrites are synced to its parent category on create/update. Conflicts with explicit `discord_channel_permission` overwrites on the same channel.

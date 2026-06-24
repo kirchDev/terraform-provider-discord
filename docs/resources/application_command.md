@@ -35,10 +35,14 @@ resource "discord_application_command" "ping" {
 
 ### Optional
 
+- `contexts` (Set of Number) Interaction contexts the command is available in (`0` guild, `1` bot DM, `2` private channel).
 - `default_member_permissions` (String) Permission bitfield (decimal string) a member needs to use the command. See the `discord_permission` data source.
 - `description` (String) Command description (required for CHAT_INPUT commands).
+- `description_localizations` (Map of String) Localized command descriptions keyed by locale. Write-only — not refreshed.
 - `dm_permission` (Boolean) Whether the command is usable in DMs (global commands only).
 - `guild_id` (String) Snowflake ID of the guild to scope the command to. Omit for a global command. Changing it replaces the command.
+- `integration_types` (Set of Number) Installation contexts where the command is available (`0` guild install, `1` user install).
+- `name_localizations` (Map of String) Localized command names keyed by locale (e.g. `de`, `fr`). Write-only — not refreshed.
 - `nsfw` (Boolean) Whether the command is age-restricted.
 - `options_json` (String) Command options as a raw JSON array (Discord's `options` field). Write-only — sent on apply but not refreshed.
 - `type` (Number) Command type (`1` chat input, `2` user, `3` message). Changing it replaces the command.

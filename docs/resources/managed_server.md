@@ -51,7 +51,9 @@ resource "discord_managed_server" "main" {
 - `public_updates_channel_id` (String) Snowflake ID of the public updates channel (Community guilds).
 - `region` (String) Voice region id (deprecated by Discord; channel-level now).
 - `rules_channel_id` (String) Snowflake ID of the rules channel (Community guilds).
+- `safety_alerts_channel_id` (String) Snowflake ID of the safety alerts channel (Community guilds).
 - `splash_data_uri` (String) Invite splash image as a base64 data URI. Write-only input; see `icon_data_uri`.
+- `system_channel_flags` (Number) System channel flags bitfield (e.g. suppress join / boost notifications).
 - `system_channel_id` (String) Snowflake ID of the system message channel.
 - `verification_level` (Number) Verification level (`0` none … `4` highest).
 

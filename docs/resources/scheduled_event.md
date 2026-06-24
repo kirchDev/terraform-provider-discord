@@ -41,6 +41,7 @@ resource "discord_scheduled_event" "meetup" {
 - `description` (String) Description of the event.
 - `location` (String) Location of an external event (maps to `entity_metadata.location`).
 - `privacy_level` (Number) Privacy level of the event (2 = guild only).
+- `recurrence_rule_json` (String) Recurrence rule for a recurring event, as a raw JSON object (Discord's `recurrence_rule`). Write-only — sent on apply but not refreshed.
 - `scheduled_end_time` (String) ISO 8601 timestamp at which the event ends (required for external events).
 
 ### Read-Only

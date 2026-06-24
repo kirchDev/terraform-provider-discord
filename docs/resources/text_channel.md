@@ -39,6 +39,7 @@ resource "discord_text_channel" "chat" {
 ### Optional
 
 - `category` (String) Snowflake ID of the parent category channel.
+- `default_auto_archive_duration` (Number) Default minutes of inactivity before threads in this channel are archived (60, 1440, 4320 or 10080).
 - `nsfw` (Boolean) Whether the channel is age-restricted.
 - `position` (Number) Sorting position of the channel.
 - `rate_limit_per_user` (Number) Slowmode in seconds (0–21600).

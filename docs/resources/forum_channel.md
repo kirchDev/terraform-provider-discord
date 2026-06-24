@@ -50,6 +50,7 @@ resource "discord_forum_channel" "help" {
 - `default_reaction_emoji_id` (String) Snowflake ID of the default reaction emoji (custom emoji).
 - `default_reaction_emoji_name` (String) Unicode emoji used as the default reaction.
 - `default_sort_order` (Number) Default sort order of posts (`0` latest activity, `1` creation date).
+- `default_thread_rate_limit_per_user` (Number) Default slowmode (seconds) for new posts in the forum.
 - `nsfw` (Boolean) Whether the channel is age-restricted.
 - `position` (Number) Sorting position of the channel.
 - `sync_perms_with_category` (Boolean) When true, the channel's permission overwrites are synced to its parent category on create/update.

@@ -41,11 +41,13 @@ resource "discord_role" "moderator" {
 ### Optional
 
 - `color` (Number) Role color as a decimal RGB integer (`0` leaves the color unset). See the `discord_color` data source.
+- `description` (String) Role description.
 - `hoist` (Boolean) Whether the role is shown separately in the member list.
 - `mentionable` (Boolean) Whether the role can be mentioned by anyone.
 - `name` (String) Role name.
 - `permissions` (String) Permission bitfield as a decimal string. See the `discord_permission` data source.
 - `position` (Number) Position of the role in the hierarchy (higher is more senior). Discord assigns one on create; set this to enforce a position.
+- `unicode_emoji` (String) Standard unicode emoji shown as the role's icon (needs the `ROLE_ICONS` guild feature).
 
 ### Read-Only
 

@@ -38,6 +38,7 @@ resource "discord_stage_channel" "town_hall" {
 - `rtc_region` (String) Voice region id for the channel; null sets it to automatic.
 - `sync_perms_with_category` (Boolean) When true, the channel's permission overwrites are synced to its parent category on create/update. Conflicts with explicit `discord_channel_permission` overwrites on the same channel.
 - `user_limit` (Number) Maximum number of users allowed in the stage channel.
+- `video_quality_mode` (Number) Camera video quality mode (`1` auto, `2` full 720p).
 
 ### Read-Only
 
