@@ -40,26 +40,27 @@ type managedServerResource struct {
 
 // guildAttributes mirrors the fields of a Discord guild object this resource maps.
 type guildAttributes struct {
-	Name                        string  `json:"name"`
-	Description                 *string `json:"description"`
-	Region                      *string `json:"region"`
-	OwnerID                     string  `json:"owner_id"`
-	AfkChannelID                *string `json:"afk_channel_id"`
-	AfkTimeout                  int64   `json:"afk_timeout"`
-	DefaultMessageNotifications int64   `json:"default_message_notifications"`
-	ExplicitContentFilter       int64   `json:"explicit_content_filter"`
-	VerificationLevel           int64   `json:"verification_level"`
-	Icon                        *string `json:"icon"`
-	Splash                      *string `json:"splash"`
-	Banner                      *string `json:"banner"`
-	DiscoverySplash             *string `json:"discovery_splash"`
-	SystemChannelID             *string `json:"system_channel_id"`
-	RulesChannelID              *string `json:"rules_channel_id"`
-	PublicUpdatesChannelID      *string `json:"public_updates_channel_id"`
-	SafetyAlertsChannelID       *string `json:"safety_alerts_channel_id"`
-	SystemChannelFlags          int64   `json:"system_channel_flags"`
-	PreferredLocale             string  `json:"preferred_locale"`
-	PremiumProgressBarEnabled   bool    `json:"premium_progress_bar_enabled"`
+	Name                        string   `json:"name"`
+	Description                 *string  `json:"description"`
+	Region                      *string  `json:"region"`
+	OwnerID                     string   `json:"owner_id"`
+	AfkChannelID                *string  `json:"afk_channel_id"`
+	AfkTimeout                  int64    `json:"afk_timeout"`
+	DefaultMessageNotifications int64    `json:"default_message_notifications"`
+	ExplicitContentFilter       int64    `json:"explicit_content_filter"`
+	VerificationLevel           int64    `json:"verification_level"`
+	Icon                        *string  `json:"icon"`
+	Splash                      *string  `json:"splash"`
+	Banner                      *string  `json:"banner"`
+	DiscoverySplash             *string  `json:"discovery_splash"`
+	SystemChannelID             *string  `json:"system_channel_id"`
+	RulesChannelID              *string  `json:"rules_channel_id"`
+	PublicUpdatesChannelID      *string  `json:"public_updates_channel_id"`
+	SafetyAlertsChannelID       *string  `json:"safety_alerts_channel_id"`
+	SystemChannelFlags          int64    `json:"system_channel_flags"`
+	PreferredLocale             string   `json:"preferred_locale"`
+	PremiumProgressBarEnabled   bool     `json:"premium_progress_bar_enabled"`
+	Features                    []string `json:"features"`
 }
 
 type managedServerResourceModel struct {
@@ -89,6 +90,7 @@ type managedServerResourceModel struct {
 	SystemChannelFlags          types.Int64  `tfsdk:"system_channel_flags"`
 	PreferredLocale             types.String `tfsdk:"preferred_locale"`
 	PremiumProgressBarEnabled   types.Bool   `tfsdk:"premium_progress_bar_enabled"`
+	Features                    types.Set    `tfsdk:"features"`
 }
 
 func (r *managedServerResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -165,6 +167,11 @@ func (r *managedServerResource) Schema(_ context.Context, _ resource.SchemaReque
 			"system_channel_flags":         optComputedInt("System channel flags bitfield (e.g. suppress join / boost notifications)."),
 			"preferred_locale":             optComputedStr("Preferred locale of a Community guild (e.g. `en-US`)."),
 			"premium_progress_bar_enabled": schema.BoolAttribute{MarkdownDescription: "Whether the boost progress bar is shown.", Optional: true, Computed: true, PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
+			"features": schema.SetAttribute{
+				MarkdownDescription: "Enabled guild feature flags (e.g. `COMMUNITY`, `NEWS`, `BANNER`). Read-only — Discord mixes mutable and immutable features, so toggling them (e.g. enabling Community) is not exposed here.",
+				ElementType:         types.StringType,
+				Computed:            true,
+			},
 		},
 	}
 }
@@ -350,5 +357,10 @@ func (r *managedServerResource) readInto(ctx context.Context, m *managedServerRe
 	m.SystemChannelFlags = types.Int64Value(a.SystemChannelFlags)
 	m.PreferredLocale = types.StringValue(a.PreferredLocale)
 	m.PremiumProgressBarEnabled = types.BoolValue(a.PremiumProgressBarEnabled)
+	features, hasErr := setOfStrings(ctx, a.Features)
+	if hasErr {
+		return fmt.Errorf("building features state")
+	}
+	m.Features = features
 	return nil
 }
