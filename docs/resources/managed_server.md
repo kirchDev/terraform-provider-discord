@@ -67,3 +67,4 @@ resource "discord_managed_server" "main" {
 - `icon_hash` (String) Current guild icon hash.
 - `id` (String) Guild ID (equal to `server_id`).
 - `splash_hash` (String) Current invite splash hash.
+- `vanity_url_code` (String) The guild's vanity invite code (Boost level 3). Read-only — Discord has no API to set it; surfaced here so it can be referenced.
