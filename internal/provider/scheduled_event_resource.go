@@ -49,6 +49,8 @@ type scheduledEventResourceModel struct {
 	ChannelID          types.String `tfsdk:"channel_id"`
 	Location           types.String `tfsdk:"location"`
 	RecurrenceRuleJSON types.String `tfsdk:"recurrence_rule_json"`
+	ImageDataURI       types.String `tfsdk:"image_data_uri"`
+	ImageHash          types.String `tfsdk:"image_hash"`
 	Status             types.Int64  `tfsdk:"status"`
 }
 
@@ -110,6 +112,11 @@ func (r *scheduledEventResource) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "Recurrence rule for a recurring event, as a raw JSON object (Discord's `recurrence_rule`). Write-only — sent on apply but not refreshed.",
 				Optional:            true,
 			},
+			"image_data_uri": schema.StringAttribute{
+				MarkdownDescription: "Cover image as a base64 data URI (e.g. from `discord_local_file`). Write-only; Discord returns a hash in `image_hash`.",
+				Optional:            true,
+			},
+			"image_hash": schema.StringAttribute{MarkdownDescription: "Current cover image hash.", Computed: true},
 			"status": schema.Int64Attribute{
 				MarkdownDescription: "Status of the event: 1 (scheduled), 2 (active), 3 (completed), 4 (cancelled).",
 				Computed:            true,
@@ -153,6 +160,9 @@ func (r *scheduledEventResource) body(m *scheduledEventResourceModel) map[string
 	}
 	if v := m.Location; !v.IsNull() && !v.IsUnknown() {
 		body["entity_metadata"] = map[string]any{"location": v.ValueString()}
+	}
+	if v := m.ImageDataURI; !v.IsNull() && !v.IsUnknown() {
+		body["image"] = v.ValueString()
 	}
 	return body
 }
@@ -273,6 +283,7 @@ func (r *scheduledEventResource) readInto(ctx context.Context, m *scheduledEvent
 		EntityType         int64   `json:"entity_type"`
 		ChannelID          *string `json:"channel_id"`
 		Status             int64   `json:"status"`
+		Image              *string `json:"image"`
 		EntityMetadata     *struct {
 			Location *string `json:"location"`
 		} `json:"entity_metadata"`
@@ -292,6 +303,7 @@ func (r *scheduledEventResource) readInto(ctx context.Context, m *scheduledEvent
 	m.EntityType = types.Int64Value(a.EntityType)
 	m.ChannelID = types.StringPointerValue(a.ChannelID)
 	m.Status = types.Int64Value(a.Status)
+	m.ImageHash = types.StringPointerValue(a.Image)
 	if a.EntityMetadata != nil {
 		m.Location = types.StringPointerValue(a.EntityMetadata.Location)
 	} else {

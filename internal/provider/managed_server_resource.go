@@ -51,6 +51,8 @@ type guildAttributes struct {
 	VerificationLevel           int64   `json:"verification_level"`
 	Icon                        *string `json:"icon"`
 	Splash                      *string `json:"splash"`
+	Banner                      *string `json:"banner"`
+	DiscoverySplash             *string `json:"discovery_splash"`
 	SystemChannelID             *string `json:"system_channel_id"`
 	RulesChannelID              *string `json:"rules_channel_id"`
 	PublicUpdatesChannelID      *string `json:"public_updates_channel_id"`
@@ -76,6 +78,10 @@ type managedServerResourceModel struct {
 	IconHash                    types.String `tfsdk:"icon_hash"`
 	SplashDataURI               types.String `tfsdk:"splash_data_uri"`
 	SplashHash                  types.String `tfsdk:"splash_hash"`
+	BannerDataURI               types.String `tfsdk:"banner_data_uri"`
+	BannerHash                  types.String `tfsdk:"banner_hash"`
+	DiscoverySplashDataURI      types.String `tfsdk:"discovery_splash_data_uri"`
+	DiscoverySplashHash         types.String `tfsdk:"discovery_splash_hash"`
 	SystemChannelID             types.String `tfsdk:"system_channel_id"`
 	RulesChannelID              types.String `tfsdk:"rules_channel_id"`
 	PublicUpdatesChannelID      types.String `tfsdk:"public_updates_channel_id"`
@@ -141,7 +147,17 @@ func (r *managedServerResource) Schema(_ context.Context, _ resource.SchemaReque
 				MarkdownDescription: "Invite splash image as a base64 data URI. Write-only input; see `icon_data_uri`.",
 				Optional:            true,
 			},
-			"splash_hash":                  schema.StringAttribute{MarkdownDescription: "Current invite splash hash.", Computed: true},
+			"splash_hash": schema.StringAttribute{MarkdownDescription: "Current invite splash hash.", Computed: true},
+			"banner_data_uri": schema.StringAttribute{
+				MarkdownDescription: "Guild banner image as a base64 data URI (e.g. from `discord_local_file`). Write-only; see `icon_data_uri`.",
+				Optional:            true,
+			},
+			"banner_hash": schema.StringAttribute{MarkdownDescription: "Current guild banner hash.", Computed: true},
+			"discovery_splash_data_uri": schema.StringAttribute{
+				MarkdownDescription: "Discovery splash image as a base64 data URI (Discoverable guilds). Write-only; see `icon_data_uri`.",
+				Optional:            true,
+			},
+			"discovery_splash_hash":        schema.StringAttribute{MarkdownDescription: "Current discovery splash hash.", Computed: true},
 			"system_channel_id":            optComputedStr("Snowflake ID of the system message channel."),
 			"rules_channel_id":             optComputedStr("Snowflake ID of the rules channel (Community guilds)."),
 			"public_updates_channel_id":    optComputedStr("Snowflake ID of the public updates channel (Community guilds)."),
@@ -200,6 +216,12 @@ func (r *managedServerResource) buildBody(m *managedServerResourceModel) map[str
 	}
 	if v := m.SplashDataURI; !v.IsNull() && !v.IsUnknown() {
 		body["splash"] = v.ValueString()
+	}
+	if v := m.BannerDataURI; !v.IsNull() && !v.IsUnknown() {
+		body["banner"] = v.ValueString()
+	}
+	if v := m.DiscoverySplashDataURI; !v.IsNull() && !v.IsUnknown() {
+		body["discovery_splash"] = v.ValueString()
 	}
 	if v := m.SystemChannelID; !v.IsNull() && !v.IsUnknown() {
 		body["system_channel_id"] = v.ValueString()
@@ -319,6 +341,8 @@ func (r *managedServerResource) readInto(ctx context.Context, m *managedServerRe
 	m.VerificationLevel = types.Int64Value(a.VerificationLevel)
 	m.IconHash = types.StringPointerValue(a.Icon)
 	m.SplashHash = types.StringPointerValue(a.Splash)
+	m.BannerHash = types.StringPointerValue(a.Banner)
+	m.DiscoverySplashHash = types.StringPointerValue(a.DiscoverySplash)
 	m.SystemChannelID = types.StringPointerValue(a.SystemChannelID)
 	m.RulesChannelID = types.StringPointerValue(a.RulesChannelID)
 	m.PublicUpdatesChannelID = types.StringPointerValue(a.PublicUpdatesChannelID)

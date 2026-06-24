@@ -148,6 +148,9 @@ func (p *DiscordProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewGuildTemplateResource,
 		NewThreadResource,
 		NewEmojiResource,
+		NewApplicationEmojiResource,
+		NewStickerResource,
+		NewSoundboardSoundResource,
 		NewScheduledEventResource,
 		NewAutoModerationRuleResource,
 		NewGuildBanResource,
@@ -177,6 +180,7 @@ func (p *DiscordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewUserDataSource,
 		NewChannelDataSource,
 		NewLocalImageDataSource,
+		NewLocalFileDataSource,
 		NewInviteDataSource,
 	}
 }

@@ -50,6 +50,7 @@ type roleAttributes struct {
 	Mentionable  bool    `json:"mentionable"`
 	UnicodeEmoji *string `json:"unicode_emoji"`
 	Description  *string `json:"description"`
+	Icon         *string `json:"icon"`
 }
 
 type roleResourceModel struct {
@@ -64,6 +65,8 @@ type roleResourceModel struct {
 	Managed      types.Bool   `tfsdk:"managed"`
 	UnicodeEmoji types.String `tfsdk:"unicode_emoji"`
 	Description  types.String `tfsdk:"description"`
+	IconDataURI  types.String `tfsdk:"icon_data_uri"`
+	IconHash     types.String `tfsdk:"icon_hash"`
 }
 
 func (r *roleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -133,6 +136,11 @@ func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				Computed:            true,
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"icon_data_uri": schema.StringAttribute{
+				MarkdownDescription: "Role icon image as a base64 data URI (needs the `ROLE_ICONS` guild feature; mutually exclusive with `unicode_emoji`). Write-only; Discord returns a hash in `icon_hash`.",
+				Optional:            true,
+			},
+			"icon_hash": schema.StringAttribute{MarkdownDescription: "Current role icon hash.", Computed: true},
 			"managed": schema.BoolAttribute{
 				MarkdownDescription: "Whether the role is managed by an integration (read-only).",
 				Computed:            true,
@@ -181,6 +189,9 @@ func (r *roleResource) body(m *roleResourceModel) map[string]any {
 	}
 	if v := m.Description; !v.IsNull() && !v.IsUnknown() {
 		body["description"] = v.ValueString()
+	}
+	if v := m.IconDataURI; !v.IsNull() && !v.IsUnknown() {
+		body["icon"] = v.ValueString()
 	}
 	return body
 }
@@ -303,5 +314,6 @@ func (r *roleResource) readInto(ctx context.Context, m *roleResourceModel) error
 	m.Managed = types.BoolValue(a.Managed)
 	m.UnicodeEmoji = types.StringPointerValue(a.UnicodeEmoji)
 	m.Description = types.StringPointerValue(a.Description)
+	m.IconHash = types.StringPointerValue(a.Icon)
 	return nil
 }

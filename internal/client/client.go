@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"sync"
@@ -117,6 +119,40 @@ func (c *Client) BotUserID(ctx context.Context) (string, error) {
 	return u.ID, nil
 }
 
+// WriteMultipart sends a multipart/form-data request: the text fields plus one
+// file part (fileField, fileName, fileMime, content). Used for the few endpoints
+// Discord requires as multipart rather than JSON (e.g. guild sticker upload).
+// Decodes the JSON response into out when set, and shares the same auth,
+// audit-log reason and rate-limit handling as the JSON path.
+func (c *Client) WriteMultipart(ctx context.Context, method, path string, fields map[string]string, fileField, fileName, fileMime string, content []byte, out any) error {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if err := w.WriteField(k, v); err != nil {
+			return err
+		}
+	}
+	// Set the file part's Content-Type explicitly: Discord identifies the asset
+	// format from it, and rejects the multipart default (application/octet-stream)
+	// as an "Invalid Asset".
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf("form-data; name=%q; filename=%q", fileField, fileName))
+	if fileMime != "" {
+		h.Set("Content-Type", fileMime)
+	}
+	fw, err := w.CreatePart(h)
+	if err != nil {
+		return err
+	}
+	if _, err := fw.Write(content); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	return c.doRaw(ctx, method, path, buf.Bytes(), w.FormDataContentType(), out)
+}
+
 // NotFound reports whether err is a 404 from the API (useful for Read to drop a
 // resource from state when it's gone upstream).
 func NotFound(err error) bool {
@@ -156,9 +192,19 @@ type errorBody struct {
 	Message string `json:"message"`
 }
 
-// do performs an authenticated request, transparently retrying 429 (honouring
-// retry_after) and transient 5xx, and decodes a 2xx JSON body into out when set.
+// do issues a request whose body (if any) is JSON.
 func (c *Client) do(ctx context.Context, method, path string, body []byte, out any) error {
+	contentType := ""
+	if body != nil {
+		contentType = "application/json"
+	}
+	return c.doRaw(ctx, method, path, body, contentType, out)
+}
+
+// doRaw performs an authenticated request with the given Content-Type,
+// transparently retrying 429 (honouring retry_after) and transient 5xx, and
+// decodes a 2xx JSON body into out when set.
+func (c *Client) doRaw(ctx context.Context, method, path string, body []byte, contentType string, out any) error {
 	for attempt := 1; ; attempt++ {
 		var reader io.Reader
 		if body != nil {
@@ -171,8 +217,8 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte, out a
 		req.Header.Set("Authorization", "Bot "+c.token)
 		req.Header.Set("User-Agent", c.userAgent)
 		req.Header.Set("Accept", "application/json")
-		if body != nil {
-			req.Header.Set("Content-Type", "application/json")
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
 		}
 		// Attribute the change in the guild audit log. Discord ignores the header
 		// on GET, so only set it on mutating requests.
