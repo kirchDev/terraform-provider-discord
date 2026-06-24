@@ -40,26 +40,30 @@ type roleResource struct {
 // roleAttributes mirrors a Discord role object. Permissions is a decimal string
 // bitfield (a 64-bit number would lose precision as a JSON number).
 type roleAttributes struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Color       int64  `json:"color"`
-	Hoist       bool   `json:"hoist"`
-	Position    int64  `json:"position"`
-	Permissions string `json:"permissions"`
-	Managed     bool   `json:"managed"`
-	Mentionable bool   `json:"mentionable"`
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	Color        int64   `json:"color"`
+	Hoist        bool    `json:"hoist"`
+	Position     int64   `json:"position"`
+	Permissions  string  `json:"permissions"`
+	Managed      bool    `json:"managed"`
+	Mentionable  bool    `json:"mentionable"`
+	UnicodeEmoji *string `json:"unicode_emoji"`
+	Description  *string `json:"description"`
 }
 
 type roleResourceModel struct {
-	ServerID    types.String `tfsdk:"server_id"`
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Color       types.Int64  `tfsdk:"color"`
-	Hoist       types.Bool   `tfsdk:"hoist"`
-	Position    types.Int64  `tfsdk:"position"`
-	Permissions types.String `tfsdk:"permissions"`
-	Mentionable types.Bool   `tfsdk:"mentionable"`
-	Managed     types.Bool   `tfsdk:"managed"`
+	ServerID     types.String `tfsdk:"server_id"`
+	ID           types.String `tfsdk:"id"`
+	Name         types.String `tfsdk:"name"`
+	Color        types.Int64  `tfsdk:"color"`
+	Hoist        types.Bool   `tfsdk:"hoist"`
+	Position     types.Int64  `tfsdk:"position"`
+	Permissions  types.String `tfsdk:"permissions"`
+	Mentionable  types.Bool   `tfsdk:"mentionable"`
+	Managed      types.Bool   `tfsdk:"managed"`
+	UnicodeEmoji types.String `tfsdk:"unicode_emoji"`
+	Description  types.String `tfsdk:"description"`
 }
 
 func (r *roleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -117,6 +121,18 @@ func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
+			"unicode_emoji": schema.StringAttribute{
+				MarkdownDescription: "Standard unicode emoji shown as the role's icon (needs the `ROLE_ICONS` guild feature).",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"description": schema.StringAttribute{
+				MarkdownDescription: "Role description.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 			"managed": schema.BoolAttribute{
 				MarkdownDescription: "Whether the role is managed by an integration (read-only).",
 				Computed:            true,
@@ -159,6 +175,12 @@ func (r *roleResource) body(m *roleResourceModel) map[string]any {
 	}
 	if v := m.Mentionable; !v.IsNull() && !v.IsUnknown() {
 		body["mentionable"] = v.ValueBool()
+	}
+	if v := m.UnicodeEmoji; !v.IsNull() && !v.IsUnknown() {
+		body["unicode_emoji"] = v.ValueString()
+	}
+	if v := m.Description; !v.IsNull() && !v.IsUnknown() {
+		body["description"] = v.ValueString()
 	}
 	return body
 }
@@ -279,5 +301,7 @@ func (r *roleResource) readInto(ctx context.Context, m *roleResourceModel) error
 	m.Permissions = types.StringValue(a.Permissions)
 	m.Mentionable = types.BoolValue(a.Mentionable)
 	m.Managed = types.BoolValue(a.Managed)
+	m.UnicodeEmoji = types.StringPointerValue(a.UnicodeEmoji)
+	m.Description = types.StringPointerValue(a.Description)
 	return nil
 }

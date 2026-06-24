@@ -46,6 +46,8 @@ type applicationCommandWire struct {
 	DefaultMemberPermissions *string `json:"default_member_permissions"`
 	DMPermission             *bool   `json:"dm_permission"`
 	NSFW                     bool    `json:"nsfw"`
+	Contexts                 []int64 `json:"contexts"`
+	IntegrationTypes         []int64 `json:"integration_types"`
 }
 
 type applicationCommandResourceModel struct {
@@ -59,6 +61,10 @@ type applicationCommandResourceModel struct {
 	DefaultMemberPermissions types.String `tfsdk:"default_member_permissions"`
 	DMPermission             types.Bool   `tfsdk:"dm_permission"`
 	NSFW                     types.Bool   `tfsdk:"nsfw"`
+	NameLocalizations        types.Map    `tfsdk:"name_localizations"`
+	DescriptionLocalizations types.Map    `tfsdk:"description_localizations"`
+	Contexts                 types.Set    `tfsdk:"contexts"`
+	IntegrationTypes         types.Set    `tfsdk:"integration_types"`
 }
 
 func (r *applicationCommandResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -113,6 +119,28 @@ func (r *applicationCommandResource) Schema(_ context.Context, _ resource.Schema
 				Optional:            true,
 				Computed:            true,
 			},
+			"name_localizations": schema.MapAttribute{
+				MarkdownDescription: "Localized command names keyed by locale (e.g. `de`, `fr`). Write-only — not refreshed.",
+				ElementType:         types.StringType,
+				Optional:            true,
+			},
+			"description_localizations": schema.MapAttribute{
+				MarkdownDescription: "Localized command descriptions keyed by locale. Write-only — not refreshed.",
+				ElementType:         types.StringType,
+				Optional:            true,
+			},
+			"contexts": schema.SetAttribute{
+				MarkdownDescription: "Interaction contexts the command is available in (`0` guild, `1` bot DM, `2` private channel).",
+				ElementType:         types.Int64Type,
+				Optional:            true,
+				Computed:            true,
+			},
+			"integration_types": schema.SetAttribute{
+				MarkdownDescription: "Installation contexts where the command is available (`0` guild install, `1` user install).",
+				ElementType:         types.Int64Type,
+				Optional:            true,
+				Computed:            true,
+			},
 		},
 	}
 }
@@ -137,7 +165,7 @@ func (r *applicationCommandResource) commandsPath(m *applicationCommandResourceM
 	return "/applications/" + m.ApplicationID.ValueString() + "/commands"
 }
 
-func (r *applicationCommandResource) body(m *applicationCommandResourceModel) (map[string]any, error) {
+func (r *applicationCommandResource) body(ctx context.Context, m *applicationCommandResourceModel) (map[string]any, error) {
 	body := map[string]any{"name": m.Name.ValueString(), "type": m.Type.ValueInt64()}
 	if v := m.Description; !v.IsNull() && !v.IsUnknown() {
 		body["description"] = v.ValueString()
@@ -158,6 +186,34 @@ func (r *applicationCommandResource) body(m *applicationCommandResourceModel) (m
 		}
 		body["options"] = options
 	}
+	if v := m.NameLocalizations; !v.IsNull() && !v.IsUnknown() {
+		locs := map[string]string{}
+		if d := v.ElementsAs(ctx, &locs, false); d.HasError() {
+			return nil, fmt.Errorf("reading name_localizations")
+		}
+		body["name_localizations"] = locs
+	}
+	if v := m.DescriptionLocalizations; !v.IsNull() && !v.IsUnknown() {
+		locs := map[string]string{}
+		if d := v.ElementsAs(ctx, &locs, false); d.HasError() {
+			return nil, fmt.Errorf("reading description_localizations")
+		}
+		body["description_localizations"] = locs
+	}
+	if v := m.Contexts; !v.IsNull() && !v.IsUnknown() {
+		var ctxs []int64
+		if d := v.ElementsAs(ctx, &ctxs, false); d.HasError() {
+			return nil, fmt.Errorf("reading contexts")
+		}
+		body["contexts"] = ctxs
+	}
+	if v := m.IntegrationTypes; !v.IsNull() && !v.IsUnknown() {
+		var its []int64
+		if d := v.ElementsAs(ctx, &its, false); d.HasError() {
+			return nil, fmt.Errorf("reading integration_types")
+		}
+		body["integration_types"] = its
+	}
 	return body, nil
 }
 
@@ -167,7 +223,7 @@ func (r *applicationCommandResource) Create(ctx context.Context, req resource.Cr
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	body, err := r.body(&plan)
+	body, err := r.body(ctx, &plan)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid application command configuration", err.Error())
 		return
@@ -208,7 +264,7 @@ func (r *applicationCommandResource) Update(ctx context.Context, req resource.Up
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	body, err := r.body(&plan)
+	body, err := r.body(ctx, &plan)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid application command configuration", err.Error())
 		return
@@ -267,5 +323,15 @@ func (r *applicationCommandResource) readInto(ctx context.Context, m *applicatio
 		m.DMPermission = types.BoolValue(*a.DMPermission)
 	}
 	m.NSFW = types.BoolValue(a.NSFW)
+	ctxs, d1 := types.SetValueFrom(ctx, types.Int64Type, a.Contexts)
+	if d1.HasError() {
+		return fmt.Errorf("building contexts state")
+	}
+	m.Contexts = ctxs
+	its, d2 := types.SetValueFrom(ctx, types.Int64Type, a.IntegrationTypes)
+	if d2.HasError() {
+		return fmt.Errorf("building integration_types state")
+	}
+	m.IntegrationTypes = its
 	return nil
 }

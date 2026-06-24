@@ -54,6 +54,8 @@ type guildAttributes struct {
 	SystemChannelID             *string `json:"system_channel_id"`
 	RulesChannelID              *string `json:"rules_channel_id"`
 	PublicUpdatesChannelID      *string `json:"public_updates_channel_id"`
+	SafetyAlertsChannelID       *string `json:"safety_alerts_channel_id"`
+	SystemChannelFlags          int64   `json:"system_channel_flags"`
 	PreferredLocale             string  `json:"preferred_locale"`
 	PremiumProgressBarEnabled   bool    `json:"premium_progress_bar_enabled"`
 }
@@ -77,6 +79,8 @@ type managedServerResourceModel struct {
 	SystemChannelID             types.String `tfsdk:"system_channel_id"`
 	RulesChannelID              types.String `tfsdk:"rules_channel_id"`
 	PublicUpdatesChannelID      types.String `tfsdk:"public_updates_channel_id"`
+	SafetyAlertsChannelID       types.String `tfsdk:"safety_alerts_channel_id"`
+	SystemChannelFlags          types.Int64  `tfsdk:"system_channel_flags"`
 	PreferredLocale             types.String `tfsdk:"preferred_locale"`
 	PremiumProgressBarEnabled   types.Bool   `tfsdk:"premium_progress_bar_enabled"`
 }
@@ -141,6 +145,8 @@ func (r *managedServerResource) Schema(_ context.Context, _ resource.SchemaReque
 			"system_channel_id":            optComputedStr("Snowflake ID of the system message channel."),
 			"rules_channel_id":             optComputedStr("Snowflake ID of the rules channel (Community guilds)."),
 			"public_updates_channel_id":    optComputedStr("Snowflake ID of the public updates channel (Community guilds)."),
+			"safety_alerts_channel_id":     optComputedStr("Snowflake ID of the safety alerts channel (Community guilds)."),
+			"system_channel_flags":         optComputedInt("System channel flags bitfield (e.g. suppress join / boost notifications)."),
 			"preferred_locale":             optComputedStr("Preferred locale of a Community guild (e.g. `en-US`)."),
 			"premium_progress_bar_enabled": schema.BoolAttribute{MarkdownDescription: "Whether the boost progress bar is shown.", Optional: true, Computed: true, PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()}},
 		},
@@ -203,6 +209,12 @@ func (r *managedServerResource) buildBody(m *managedServerResourceModel) map[str
 	}
 	if v := m.PublicUpdatesChannelID; !v.IsNull() && !v.IsUnknown() {
 		body["public_updates_channel_id"] = v.ValueString()
+	}
+	if v := m.SafetyAlertsChannelID; !v.IsNull() && !v.IsUnknown() {
+		body["safety_alerts_channel_id"] = v.ValueString()
+	}
+	if v := m.SystemChannelFlags; !v.IsNull() && !v.IsUnknown() {
+		body["system_channel_flags"] = v.ValueInt64()
 	}
 	if v := m.PreferredLocale; !v.IsNull() && !v.IsUnknown() {
 		body["preferred_locale"] = v.ValueString()
@@ -310,6 +322,8 @@ func (r *managedServerResource) readInto(ctx context.Context, m *managedServerRe
 	m.SystemChannelID = types.StringPointerValue(a.SystemChannelID)
 	m.RulesChannelID = types.StringPointerValue(a.RulesChannelID)
 	m.PublicUpdatesChannelID = types.StringPointerValue(a.PublicUpdatesChannelID)
+	m.SafetyAlertsChannelID = types.StringPointerValue(a.SafetyAlertsChannelID)
+	m.SystemChannelFlags = types.Int64Value(a.SystemChannelFlags)
 	m.PreferredLocale = types.StringValue(a.PreferredLocale)
 	m.PremiumProgressBarEnabled = types.BoolValue(a.PremiumProgressBarEnabled)
 	return nil

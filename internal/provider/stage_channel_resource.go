@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/kirchDev/terraform-provider-discord/internal/client"
@@ -38,6 +39,7 @@ type stageChannelResourceModel struct {
 	Category              types.String `tfsdk:"category"`
 	Position              types.Int64  `tfsdk:"position"`
 	Bitrate               types.Int64  `tfsdk:"bitrate"`
+	VideoQualityMode      types.Int64  `tfsdk:"video_quality_mode"`
 	UserLimit             types.Int64  `tfsdk:"user_limit"`
 	RTCRegion             types.String `tfsdk:"rtc_region"`
 	SyncPermsWithCategory types.Bool   `tfsdk:"sync_perms_with_category"`
@@ -81,6 +83,13 @@ func (r *stageChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed:            true,
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
+			"video_quality_mode": schema.Int64Attribute{
+				MarkdownDescription: "Camera video quality mode (`1` auto, `2` full 720p).",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+				Validators:          []validator.Int64{int64OneOf(1, 2)},
+			},
 			"user_limit": schema.Int64Attribute{
 				MarkdownDescription: "Maximum number of users allowed in the stage channel.",
 				Optional:            true,
@@ -123,6 +132,9 @@ func (r *stageChannelResource) body(m *stageChannelResourceModel) map[string]any
 	}
 	if v := m.Bitrate; !v.IsNull() && !v.IsUnknown() {
 		body["bitrate"] = v.ValueInt64()
+	}
+	if v := m.VideoQualityMode; !v.IsNull() && !v.IsUnknown() {
+		body["video_quality_mode"] = v.ValueInt64()
 	}
 	if v := m.UserLimit; !v.IsNull() && !v.IsUnknown() {
 		body["user_limit"] = v.ValueInt64()
@@ -231,6 +243,7 @@ func (r *stageChannelResource) readInto(ctx context.Context, m *stageChannelReso
 	m.Category = types.StringPointerValue(a.ParentID)
 	m.Position = types.Int64Value(a.Position)
 	m.Bitrate = types.Int64Value(a.Bitrate)
+	m.VideoQualityMode = types.Int64Value(a.VideoQualityMode)
 	m.UserLimit = types.Int64Value(a.UserLimit)
 	m.RTCRegion = types.StringPointerValue(a.RTCRegion)
 	return nil

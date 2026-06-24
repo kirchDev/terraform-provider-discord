@@ -43,6 +43,8 @@ type channelAttributes struct {
 	Bitrate                       int64                 `json:"bitrate"`
 	UserLimit                     int64                 `json:"user_limit"`
 	RTCRegion                     *string               `json:"rtc_region"`
+	VideoQualityMode              int64                 `json:"video_quality_mode"`
+	DefaultAutoArchiveDuration    int64                 `json:"default_auto_archive_duration"`
 	DefaultThreadRateLimitPerUser int64                 `json:"default_thread_rate_limit_per_user"`
 	PermissionOverwrites          []permissionOverwrite `json:"permission_overwrites"`
 }

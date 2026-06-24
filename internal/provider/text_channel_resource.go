@@ -38,15 +38,16 @@ type textChannelResource struct {
 }
 
 type textChannelResourceModel struct {
-	ServerID              types.String `tfsdk:"server_id"`
-	ID                    types.String `tfsdk:"id"`
-	Name                  types.String `tfsdk:"name"`
-	Category              types.String `tfsdk:"category"`
-	Topic                 types.String `tfsdk:"topic"`
-	NSFW                  types.Bool   `tfsdk:"nsfw"`
-	Position              types.Int64  `tfsdk:"position"`
-	RateLimitPerUser      types.Int64  `tfsdk:"rate_limit_per_user"`
-	SyncPermsWithCategory types.Bool   `tfsdk:"sync_perms_with_category"`
+	ServerID                   types.String `tfsdk:"server_id"`
+	ID                         types.String `tfsdk:"id"`
+	Name                       types.String `tfsdk:"name"`
+	Category                   types.String `tfsdk:"category"`
+	Topic                      types.String `tfsdk:"topic"`
+	NSFW                       types.Bool   `tfsdk:"nsfw"`
+	Position                   types.Int64  `tfsdk:"position"`
+	RateLimitPerUser           types.Int64  `tfsdk:"rate_limit_per_user"`
+	DefaultAutoArchiveDuration types.Int64  `tfsdk:"default_auto_archive_duration"`
+	SyncPermsWithCategory      types.Bool   `tfsdk:"sync_perms_with_category"`
 }
 
 func (r *textChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -98,6 +99,13 @@ func (r *textChannelResource) Schema(_ context.Context, _ resource.SchemaRequest
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 				Validators:          []validator.Int64{int64Between(0, 21600)},
 			},
+			"default_auto_archive_duration": schema.Int64Attribute{
+				MarkdownDescription: "Default minutes of inactivity before threads in this channel are archived (60, 1440, 4320 or 10080).",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+				Validators:          []validator.Int64{int64OneOf(60, 1440, 4320, 10080)},
+			},
 			"sync_perms_with_category": schema.BoolAttribute{
 				MarkdownDescription: "When true, the channel's permission overwrites are synced to its parent category on create/update. Conflicts with explicit `discord_channel_permission` overwrites on the same channel.",
 				Optional:            true,
@@ -136,6 +144,9 @@ func (r *textChannelResource) body(m *textChannelResourceModel) map[string]any {
 	}
 	if v := m.RateLimitPerUser; !v.IsNull() && !v.IsUnknown() {
 		body["rate_limit_per_user"] = v.ValueInt64()
+	}
+	if v := m.DefaultAutoArchiveDuration; !v.IsNull() && !v.IsUnknown() {
+		body["default_auto_archive_duration"] = v.ValueInt64()
 	}
 	return body
 }
@@ -240,5 +251,6 @@ func (r *textChannelResource) readInto(ctx context.Context, m *textChannelResour
 	m.NSFW = types.BoolValue(a.NSFW)
 	m.Position = types.Int64Value(a.Position)
 	m.RateLimitPerUser = types.Int64Value(a.RateLimitPerUser)
+	m.DefaultAutoArchiveDuration = types.Int64Value(a.DefaultAutoArchiveDuration)
 	return nil
 }

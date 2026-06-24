@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/kirchDev/terraform-provider-discord/internal/client"
@@ -32,14 +33,15 @@ type newsChannelResource struct {
 }
 
 type newsChannelResourceModel struct {
-	ServerID              types.String `tfsdk:"server_id"`
-	ID                    types.String `tfsdk:"id"`
-	Name                  types.String `tfsdk:"name"`
-	Category              types.String `tfsdk:"category"`
-	Topic                 types.String `tfsdk:"topic"`
-	NSFW                  types.Bool   `tfsdk:"nsfw"`
-	Position              types.Int64  `tfsdk:"position"`
-	SyncPermsWithCategory types.Bool   `tfsdk:"sync_perms_with_category"`
+	ServerID                   types.String `tfsdk:"server_id"`
+	ID                         types.String `tfsdk:"id"`
+	Name                       types.String `tfsdk:"name"`
+	Category                   types.String `tfsdk:"category"`
+	Topic                      types.String `tfsdk:"topic"`
+	NSFW                       types.Bool   `tfsdk:"nsfw"`
+	Position                   types.Int64  `tfsdk:"position"`
+	DefaultAutoArchiveDuration types.Int64  `tfsdk:"default_auto_archive_duration"`
+	SyncPermsWithCategory      types.Bool   `tfsdk:"sync_perms_with_category"`
 }
 
 func (r *newsChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -84,6 +86,13 @@ func (r *newsChannelResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Computed:            true,
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
+			"default_auto_archive_duration": schema.Int64Attribute{
+				MarkdownDescription: "Default minutes of inactivity before threads in this channel are archived (60, 1440, 4320 or 10080).",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+				Validators:          []validator.Int64{int64OneOf(60, 1440, 4320, 10080)},
+			},
 			"sync_perms_with_category": schema.BoolAttribute{
 				MarkdownDescription: "When true, the channel's permission overwrites are synced to its parent category on create/update. Conflicts with explicit `discord_channel_permission` overwrites on the same channel.",
 				Optional:            true,
@@ -119,6 +128,9 @@ func (r *newsChannelResource) body(m *newsChannelResourceModel) map[string]any {
 	}
 	if v := m.Position; !v.IsNull() && !v.IsUnknown() {
 		body["position"] = v.ValueInt64()
+	}
+	if v := m.DefaultAutoArchiveDuration; !v.IsNull() && !v.IsUnknown() {
+		body["default_auto_archive_duration"] = v.ValueInt64()
 	}
 	return body
 }
@@ -222,5 +234,6 @@ func (r *newsChannelResource) readInto(ctx context.Context, m *newsChannelResour
 	m.Topic = types.StringPointerValue(a.Topic)
 	m.NSFW = types.BoolValue(a.NSFW)
 	m.Position = types.Int64Value(a.Position)
+	m.DefaultAutoArchiveDuration = types.Int64Value(a.DefaultAutoArchiveDuration)
 	return nil
 }

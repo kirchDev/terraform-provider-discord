@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -47,6 +48,7 @@ type scheduledEventResourceModel struct {
 	EntityType         types.Int64  `tfsdk:"entity_type"`
 	ChannelID          types.String `tfsdk:"channel_id"`
 	Location           types.String `tfsdk:"location"`
+	RecurrenceRuleJSON types.String `tfsdk:"recurrence_rule_json"`
 	Status             types.Int64  `tfsdk:"status"`
 }
 
@@ -104,6 +106,10 @@ func (r *scheduledEventResource) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "Location of an external event (maps to `entity_metadata.location`).",
 				Optional:            true,
 			},
+			"recurrence_rule_json": schema.StringAttribute{
+				MarkdownDescription: "Recurrence rule for a recurring event, as a raw JSON object (Discord's `recurrence_rule`). Write-only — sent on apply but not refreshed.",
+				Optional:            true,
+			},
 			"status": schema.Int64Attribute{
 				MarkdownDescription: "Status of the event: 1 (scheduled), 2 (active), 3 (completed), 4 (cancelled).",
 				Computed:            true,
@@ -151,6 +157,19 @@ func (r *scheduledEventResource) body(m *scheduledEventResourceModel) map[string
 	return body
 }
 
+// fullBody is body() plus the optional raw-JSON recurrence rule.
+func (r *scheduledEventResource) fullBody(m *scheduledEventResourceModel) (map[string]any, error) {
+	body := r.body(m)
+	if v := m.RecurrenceRuleJSON; !v.IsNull() && !v.IsUnknown() {
+		var rr any
+		if err := json.Unmarshal([]byte(v.ValueString()), &rr); err != nil {
+			return nil, fmt.Errorf("recurrence_rule_json is not valid JSON: %w", err)
+		}
+		body["recurrence_rule"] = rr
+	}
+	return body, nil
+}
+
 func (r *scheduledEventResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan scheduledEventResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -158,10 +177,15 @@ func (r *scheduledEventResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	body, err := r.fullBody(&plan)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid scheduled event configuration", err.Error())
+		return
+	}
 	var created struct {
 		ID string `json:"id"`
 	}
-	if err := r.client.Write(ctx, "POST", r.eventsBase(&plan), r.body(&plan), &created); err != nil {
+	if err := r.client.Write(ctx, "POST", r.eventsBase(&plan), body, &created); err != nil {
 		resp.Diagnostics.AddError("Unable to create Discord scheduled event", err.Error())
 		return
 	}
@@ -198,7 +222,12 @@ func (r *scheduledEventResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	if err := r.client.Write(ctx, "PATCH", r.eventsBase(&plan)+"/"+plan.ID.ValueString(), r.body(&plan), nil); err != nil {
+	body, err := r.fullBody(&plan)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid scheduled event configuration", err.Error())
+		return
+	}
+	if err := r.client.Write(ctx, "PATCH", r.eventsBase(&plan)+"/"+plan.ID.ValueString(), body, nil); err != nil {
 		resp.Diagnostics.AddError("Unable to update Discord scheduled event", err.Error())
 		return
 	}

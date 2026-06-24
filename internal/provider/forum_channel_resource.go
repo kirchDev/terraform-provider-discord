@@ -71,33 +71,35 @@ type forumDefaultReactionWire struct {
 }
 
 type forumChannelWire struct {
-	ID                   string                    `json:"id"`
-	GuildID              *string                   `json:"guild_id"`
-	Name                 *string                   `json:"name"`
-	Topic                *string                   `json:"topic"`
-	NSFW                 bool                      `json:"nsfw"`
-	Position             int64                     `json:"position"`
-	ParentID             *string                   `json:"parent_id"`
-	DefaultSortOrder     *int64                    `json:"default_sort_order"`
-	DefaultForumLayout   int64                     `json:"default_forum_layout"`
-	DefaultReactionEmoji *forumDefaultReactionWire `json:"default_reaction_emoji"`
-	AvailableTags        []forumTagWire            `json:"available_tags"`
+	ID                            string                    `json:"id"`
+	GuildID                       *string                   `json:"guild_id"`
+	Name                          *string                   `json:"name"`
+	Topic                         *string                   `json:"topic"`
+	NSFW                          bool                      `json:"nsfw"`
+	Position                      int64                     `json:"position"`
+	ParentID                      *string                   `json:"parent_id"`
+	DefaultSortOrder              *int64                    `json:"default_sort_order"`
+	DefaultForumLayout            int64                     `json:"default_forum_layout"`
+	DefaultReactionEmoji          *forumDefaultReactionWire `json:"default_reaction_emoji"`
+	AvailableTags                 []forumTagWire            `json:"available_tags"`
+	DefaultThreadRateLimitPerUser int64                     `json:"default_thread_rate_limit_per_user"`
 }
 
 type forumChannelResourceModel struct {
-	ServerID                types.String `tfsdk:"server_id"`
-	ID                      types.String `tfsdk:"id"`
-	Name                    types.String `tfsdk:"name"`
-	Category                types.String `tfsdk:"category"`
-	Topic                   types.String `tfsdk:"topic"`
-	NSFW                    types.Bool   `tfsdk:"nsfw"`
-	Position                types.Int64  `tfsdk:"position"`
-	DefaultSortOrder        types.Int64  `tfsdk:"default_sort_order"`
-	DefaultForumLayout      types.Int64  `tfsdk:"default_forum_layout"`
-	DefaultReactionEmojiID  types.String `tfsdk:"default_reaction_emoji_id"`
-	DefaultReactionEmojiNme types.String `tfsdk:"default_reaction_emoji_name"`
-	AvailableTags           types.List   `tfsdk:"available_tags"`
-	SyncPermsWithCategory   types.Bool   `tfsdk:"sync_perms_with_category"`
+	ServerID                      types.String `tfsdk:"server_id"`
+	ID                            types.String `tfsdk:"id"`
+	Name                          types.String `tfsdk:"name"`
+	Category                      types.String `tfsdk:"category"`
+	Topic                         types.String `tfsdk:"topic"`
+	NSFW                          types.Bool   `tfsdk:"nsfw"`
+	Position                      types.Int64  `tfsdk:"position"`
+	DefaultSortOrder              types.Int64  `tfsdk:"default_sort_order"`
+	DefaultForumLayout            types.Int64  `tfsdk:"default_forum_layout"`
+	DefaultReactionEmojiID        types.String `tfsdk:"default_reaction_emoji_id"`
+	DefaultReactionEmojiNme       types.String `tfsdk:"default_reaction_emoji_name"`
+	AvailableTags                 types.List   `tfsdk:"available_tags"`
+	DefaultThreadRateLimitPerUser types.Int64  `tfsdk:"default_thread_rate_limit_per_user"`
+	SyncPermsWithCategory         types.Bool   `tfsdk:"sync_perms_with_category"`
 }
 
 func (r *forumChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -165,6 +167,12 @@ func (r *forumChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 					},
 				},
 			},
+			"default_thread_rate_limit_per_user": schema.Int64Attribute{
+				MarkdownDescription: "Default slowmode (seconds) for new posts in the forum.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
 			"sync_perms_with_category": schema.BoolAttribute{
 				MarkdownDescription: "When true, the channel's permission overwrites are synced to its parent category on create/update.",
 				Optional:            true,
@@ -207,6 +215,9 @@ func (r *forumChannelResource) body(ctx context.Context, m *forumChannelResource
 	}
 	if v := m.DefaultForumLayout; !v.IsNull() && !v.IsUnknown() {
 		body["default_forum_layout"] = v.ValueInt64()
+	}
+	if v := m.DefaultThreadRateLimitPerUser; !v.IsNull() && !v.IsUnknown() {
+		body["default_thread_rate_limit_per_user"] = v.ValueInt64()
 	}
 	if (!m.DefaultReactionEmojiID.IsNull() && !m.DefaultReactionEmojiID.IsUnknown()) ||
 		(!m.DefaultReactionEmojiNme.IsNull() && !m.DefaultReactionEmojiNme.IsUnknown()) {
@@ -356,6 +367,7 @@ func (r *forumChannelResource) readInto(ctx context.Context, m *forumChannelReso
 		m.DefaultSortOrder = types.Int64Null()
 	}
 	m.DefaultForumLayout = types.Int64Value(a.DefaultForumLayout)
+	m.DefaultThreadRateLimitPerUser = types.Int64Value(a.DefaultThreadRateLimitPerUser)
 	if a.DefaultReactionEmoji != nil {
 		m.DefaultReactionEmojiID = types.StringPointerValue(a.DefaultReactionEmoji.EmojiID)
 		m.DefaultReactionEmojiNme = types.StringPointerValue(a.DefaultReactionEmoji.EmojiName)
