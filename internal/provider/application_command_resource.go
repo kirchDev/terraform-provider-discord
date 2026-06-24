@@ -106,6 +106,7 @@ func (r *applicationCommandResource) Schema(_ context.Context, _ resource.Schema
 			"dm_permission": schema.BoolAttribute{
 				MarkdownDescription: "Whether the command is usable in DMs (global commands only).",
 				Optional:            true,
+				Computed:            true,
 			},
 			"nsfw": schema.BoolAttribute{
 				MarkdownDescription: "Whether the command is age-restricted.",

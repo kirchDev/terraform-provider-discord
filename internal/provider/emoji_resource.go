@@ -84,6 +84,7 @@ func (r *emojiResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				MarkdownDescription: "Snowflake IDs of the roles allowed to use this emoji.",
 				ElementType:         types.StringType,
 				Optional:            true,
+				Computed:            true,
 			},
 			"animated": schema.BoolAttribute{
 				MarkdownDescription: "Whether the emoji is animated.",
