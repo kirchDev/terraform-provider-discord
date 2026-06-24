@@ -61,6 +61,7 @@ type guildAttributes struct {
 	PreferredLocale             string   `json:"preferred_locale"`
 	PremiumProgressBarEnabled   bool     `json:"premium_progress_bar_enabled"`
 	Features                    []string `json:"features"`
+	VanityURLCode               *string  `json:"vanity_url_code"`
 }
 
 type managedServerResourceModel struct {
@@ -91,6 +92,7 @@ type managedServerResourceModel struct {
 	PreferredLocale             types.String `tfsdk:"preferred_locale"`
 	PremiumProgressBarEnabled   types.Bool   `tfsdk:"premium_progress_bar_enabled"`
 	Features                    types.Set    `tfsdk:"features"`
+	VanityURLCode               types.String `tfsdk:"vanity_url_code"`
 }
 
 func (r *managedServerResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -170,6 +172,10 @@ func (r *managedServerResource) Schema(_ context.Context, _ resource.SchemaReque
 			"features": schema.SetAttribute{
 				MarkdownDescription: "Enabled guild feature flags (e.g. `COMMUNITY`, `NEWS`, `BANNER`). Read-only — Discord mixes mutable and immutable features, so toggling them (e.g. enabling Community) is not exposed here.",
 				ElementType:         types.StringType,
+				Computed:            true,
+			},
+			"vanity_url_code": schema.StringAttribute{
+				MarkdownDescription: "The guild's vanity invite code (Boost level 3). Read-only — Discord has no API to set it; surfaced here so it can be referenced.",
 				Computed:            true,
 			},
 		},
@@ -362,5 +368,6 @@ func (r *managedServerResource) readInto(ctx context.Context, m *managedServerRe
 		return fmt.Errorf("building features state")
 	}
 	m.Features = features
+	m.VanityURLCode = types.StringPointerValue(a.VanityURLCode)
 	return nil
 }
