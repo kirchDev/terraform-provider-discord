@@ -78,9 +78,19 @@ func (r *memberNicknameResource) Configure(_ context.Context, req resource.Confi
 	r.client = c
 }
 
+// writePath resolves the member-modify endpoint. Changing the bot's OWN nickname
+// must go through /members/@me (needs CHANGE_NICKNAME); any other member uses
+// /members/{user_id} (needs MANAGE_NICKNAMES). Reads always use /members/{user_id}.
+func (r *memberNicknameResource) writePath(ctx context.Context, m *memberNicknameResourceModel) string {
+	if botID, err := r.client.BotUserID(ctx); err == nil && botID == m.UserID.ValueString() {
+		return "/guilds/" + m.ServerID.ValueString() + "/members/@me"
+	}
+	return memberPath(m.ServerID.ValueString(), m.UserID.ValueString())
+}
+
 // apply PATCHes the member with the desired nick.
 func (r *memberNicknameResource) apply(ctx context.Context, m *memberNicknameResourceModel) error {
-	return r.client.Write(ctx, "PATCH", memberPath(m.ServerID.ValueString(), m.UserID.ValueString()), map[string]any{"nick": m.Nick.ValueString()}, nil)
+	return r.client.Write(ctx, "PATCH", r.writePath(ctx, m), map[string]any{"nick": m.Nick.ValueString()}, nil)
 }
 
 func (r *memberNicknameResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -141,7 +151,7 @@ func (r *memberNicknameResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.Write(ctx, "PATCH", memberPath(state.ServerID.ValueString(), state.UserID.ValueString()), map[string]any{"nick": nil}, nil); err != nil && !notFound(err) {
+	if err := r.client.Write(ctx, "PATCH", r.writePath(ctx, &state), map[string]any{"nick": nil}, nil); err != nil && !notFound(err) {
 		resp.Diagnostics.AddError("Unable to clear Discord member nickname", err.Error())
 	}
 }

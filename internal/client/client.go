@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -39,6 +40,9 @@ type Client struct {
 	token          string
 	userAgent      string
 	auditLogReason string
+
+	botMu     sync.Mutex
+	botUserID string
 }
 
 // New constructs a Client. An empty endpoint falls back to DefaultEndpoint. A
@@ -92,6 +96,25 @@ func (c *Client) Write(ctx context.Context, method, path string, body, out any) 
 // Delete issues a DELETE against path.
 func (c *Client) Delete(ctx context.Context, path string) error {
 	return c.do(ctx, http.MethodDelete, path, nil, nil)
+}
+
+// BotUserID returns the bot's own user id (GET /users/@me), fetched once and
+// cached. Used where the API treats the current user specially (e.g. changing
+// the bot's own nickname goes through /members/@me, not /members/{id}).
+func (c *Client) BotUserID(ctx context.Context) (string, error) {
+	c.botMu.Lock()
+	defer c.botMu.Unlock()
+	if c.botUserID != "" {
+		return c.botUserID, nil
+	}
+	var u struct {
+		ID string `json:"id"`
+	}
+	if err := c.Get(ctx, "/users/@me", &u); err != nil {
+		return "", err
+	}
+	c.botUserID = u.ID
+	return u.ID, nil
 }
 
 // NotFound reports whether err is a 404 from the API (useful for Read to drop a
