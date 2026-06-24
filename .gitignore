@@ -20,6 +20,10 @@ crash.*.log
 .terraformrc
 terraform.rc
 
+# Local secrets / live-test credentials
+.env
+.env.*
+
 # AI scratch notes (scoping/handoff, not shipped)
 temp_ai.md
 session.md
