@@ -43,6 +43,7 @@ resource "discord_role" "moderator" {
 - `color` (Number) Role color as a decimal RGB integer (`0` leaves the color unset). See the `discord_color` data source.
 - `description` (String) Role description.
 - `hoist` (Boolean) Whether the role is shown separately in the member list.
+- `icon_data_uri` (String) Role icon image as a base64 data URI (needs the `ROLE_ICONS` guild feature; mutually exclusive with `unicode_emoji`). Write-only; Discord returns a hash in `icon_hash`.
 - `mentionable` (Boolean) Whether the role can be mentioned by anyone.
 - `name` (String) Role name.
 - `permissions` (String) Permission bitfield as a decimal string. See the `discord_permission` data source.
@@ -51,5 +52,6 @@ resource "discord_role" "moderator" {
 
 ### Read-Only
 
+- `icon_hash` (String) Current role icon hash.
 - `id` (String) Snowflake ID of the role.
 - `managed` (Boolean) Whether the role is managed by an integration (read-only).

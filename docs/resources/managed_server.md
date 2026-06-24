@@ -40,8 +40,10 @@ resource "discord_managed_server" "main" {
 
 - `afk_channel_id` (String) Snowflake ID of the AFK voice channel.
 - `afk_timeout` (Number) AFK timeout in seconds (60, 300, 900, 1800 or 3600).
+- `banner_data_uri` (String) Guild banner image as a base64 data URI (e.g. from `discord_local_file`). Write-only; see `icon_data_uri`.
 - `default_message_notifications` (Number) Default message notification level (`0` = all messages, `1` = only mentions).
 - `description` (String) Guild description (Community guilds).
+- `discovery_splash_data_uri` (String) Discovery splash image as a base64 data URI (Discoverable guilds). Write-only; see `icon_data_uri`.
 - `explicit_content_filter` (Number) Explicit content filter level (`0` disabled, `1` members without roles, `2` all members).
 - `icon_data_uri` (String) Guild icon as a base64 data URI (e.g. from `discord_local_image`). Write-only input; Discord stores it and returns a hash in `icon_hash`. Not refreshed from the API, so it never drifts.
 - `name` (String) Guild name.
@@ -59,6 +61,8 @@ resource "discord_managed_server" "main" {
 
 ### Read-Only
 
+- `banner_hash` (String) Current guild banner hash.
+- `discovery_splash_hash` (String) Current discovery splash hash.
 - `icon_hash` (String) Current guild icon hash.
 - `id` (String) Guild ID (equal to `server_id`).
 - `splash_hash` (String) Current invite splash hash.
