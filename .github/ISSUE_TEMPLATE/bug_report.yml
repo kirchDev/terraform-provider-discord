@@ -1,12 +1,12 @@
 name: 🐛 Bug report
-description: Something in the template isn't working as expected
+description: Something in the provider isn't working as expected
 labels: ['bug', 'triage']
 body:
   - type: markdown
     attributes:
       value: |
         Thanks for taking the time to report a bug. Please fill out the form below.
-        For security vulnerabilities, see [SECURITY.md](https://github.com/TitusKirch/scaffold/blob/main/SECURITY.md) instead.
+        For security vulnerabilities, see [SECURITY.md](https://github.com/kirchDev/terraform-provider-discord/blob/main/SECURITY.md) instead.
 
   - type: input
     id: file

@@ -3,6 +3,11 @@
 name: CI
 
 on:
+  # Run on pushes to main too (not just PRs) so the workflow has runs on the
+  # main branch — the tests badge queries those; without them it shows "no status".
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -20,7 +25,7 @@ jobs:
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v6
 
@@ -39,3 +44,51 @@ jobs:
 
       - name: Format check
         run: pnpm format
+
+  go:
+    name: Go Build & Test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Format check
+        run: |
+          unformatted=$(gofmt -s -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint (golangci-lint)
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
+        with:
+          version: v2.12.2
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
+      # Acceptance tests run the real provider through a full apply/refresh/
+      # import/destroy cycle against an in-memory mock of the Discord API (no token,
+      # no real Discord). The terraform-plugin-testing harness needs a TF binary.
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@847eaa4afeb791b06daa46e8eafa8b1b68d7cfb4 # v2.0.1
+        with:
+          tofu_wrapper: false
+
+      - name: Acceptance tests (mock API)
+        env:
+          TF_ACC: '1'
+        run: go test ./internal/provider/ -run TestAcc -timeout 10m

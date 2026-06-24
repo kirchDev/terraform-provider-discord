@@ -2,3 +2,28 @@ node_modules
 .DS_Store
 .idea
 .vscode
+
+# Go
+/terraform-provider-discord
+/dist/
+*.test
+*.out
+
+# OpenTofu / Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local provider dev overrides
+.terraformrc
+terraform.rc
+
+# Local secrets / live-test credentials
+.env
+.env.*
+
+# AI scratch notes (scoping/handoff, not shipped)
+temp_ai.md
+session.md

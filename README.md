@@ -1,94 +1,98 @@
 <div align="center">
 
-# 🏗️ scaffold
+# 💬 terraform-provider-discord
 
-**The kirchDev baseline — everything a new repo should ship with on day one, nothing more**
+**Manage your Discord guild infrastructure as code — roles, channels, permissions, members, webhooks, events and moderation, reconciled by OpenTofu**
+
+[![Release](https://img.shields.io/github/v/release/kirchDev/terraform-provider-discord?style=flat-square&label=release&color=5865F2)](https://github.com/kirchDev/terraform-provider-discord/releases/latest)
+[![OpenTofu Registry](https://img.shields.io/badge/opentofu-kirchdev%2Fdiscord-FFDA18?style=flat-square&logo=opentofu&logoColor=black)](https://search.opentofu.org/provider/kirchdev/discord/latest)
+[![Terraform Registry](https://img.shields.io/badge/terraform-kirchdev%2Fdiscord-7b42bc?style=flat-square&logo=terraform&logoColor=white)](https://registry.terraform.io/providers/kirchDev/discord/latest)
+[![Tests](https://img.shields.io/github/actions/workflow/status/kirchDev/terraform-provider-discord/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/kirchDev/terraform-provider-discord/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/kirchDev/terraform-provider-discord?style=flat-square&color=5865F2)](LICENSE)
 
 </div>
 
 ---
 
-```bash
-gh repo create my-new-repo --template TitusKirch/scaffold
+```hcl
+resource "discord_role" "moderators" {
+  server_id   = "123456789012345678"
+  name        = "Moderators"
+  color       = data.discord_color.blurple.dec
+  permissions = data.discord_permission.mod.allow_bits
+  hoist       = true
+}
 ```
 
-That's it. Click **Use this template** (or use `gh`), edit a handful of placeholders, and the meta layer — lint, format, commit hooks, CI, CodeQL, Dependabot, release-please — is already wired up.
+Roles, channels, permission overwrites, members, webhooks and events declared in HCL and reconciled by OpenTofu — not clicked together in the Discord UI. One bot token manages every guild the bot is in. **Scope is guild infrastructure, not message content.**
 
-## ✨ What's in the box
+> [!IMPORTANT]
+> **Pre-1.0 / beta.** Built from scratch against the Discord REST API (v10) with `terraform-plugin-framework`. The client honours Discord's rate limits; the schema and behaviour may still change — pin an exact version and test before relying on it.
 
-- **🟢 Node + pnpm pinned** — `.nvmrc` (Node 24), `.npmrc` (pnpm 11 with sane defaults), `package.json` with `packageManager`.
-- **🧹 Lint & format via oxc** — `.oxlintrc.json`, `.oxfmtrc.json`, single `pnpm check` gate.
-- **🪝 Commit hooks** — Husky + `lint-staged` + `commitlint` enforcing Conventional Commits.
-- **🤖 Dependency PRs** — Dependabot (npm weekly, actions monthly) + `taze.config.js` for interactive upgrades.
-- **🔁 release-please** — full workflow + config + manifest so the new repo can publish from its first commit.
-- **🛡️ GitHub workflows** — `ci.yml` (lint + format check on PR), `codeql.yml` (push/PR + weekly).
-- **📋 Issue / PR templates** — bug report, feature request, question (`.yml` forms) + PR checklist.
-- **📄 Standard meta** — `LICENSE`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`.
+## 📦 Install & run
 
-The actual project code can be anything — PHP, Go, Rust, Vue, plain shell. `scaffold` only owns the meta layer that sits on top.
+```hcl
+terraform {
+  required_providers {
+    discord = {
+      source  = "kirchdev/discord"
+      version = "~> 0.1"
+    }
+  }
+}
 
-## 🚀 Setup
+provider "discord" {
+  token = var.discord_token # or set DISCORD_TOKEN
+}
 
-After clicking **Use this template**:
+resource "discord_text_channel" "general" {
+  server_id = "123456789012345678"
+  name      = "general"
+  topic     = "Welcome!"
+}
+```
 
-1. Clone your new repo.
-2. Replace the placeholders listed in [Customising the template](#-customising-the-template).
-3. Reset release-please as described in [Resetting release-please](#-resetting-release-please) (only if you want to start at `v0.0.0`).
-4. `pnpm install` — Husky activates the hooks via the `prepare` script.
-5. Add your project code and ship the first commit:
+```bash
+export DISCORD_TOKEN="your-bot-token"   # Discord Developer Portal → Bot → Token
+tofu plan
+```
 
-   ```bash
-   git commit -m "chore: initial commit from scaffold"
-   ```
+The bot must be a member of every guild you manage, with the permissions for what you change (`Manage Roles`, `Manage Channels`, …).
 
-## 🧰 Customising the template
+## ✨ Features
 
-Every file below references `TitusKirch/scaffold`, the maintainer's name, or the maintainer's email. Search-and-replace these to your repo's identity before the first push.
+- **💬 Discord as code** — roles, channels, permission overwrites, members, webhooks, invites, events and moderation in HCL.
+- **🧩 Broad API coverage** — ~24 resources + 9 data sources across the guild-management surface.
+- **🔐 Ergonomic permissions** — the `discord_permission` data source turns named permission keys into the decimal bitfields Discord wants.
+- **🚦 Rate-limit aware** — the client transparently honours `429` `retry_after` and retries transient errors.
+- **🚀 OpenTofu & Terraform** — published as `kirchdev/discord` on both registries.
+- **⚡ Modern stack** — `terraform-plugin-framework`; docs generated from the schema.
 
-| File                                  | Replace                                                                          |
-| :------------------------------------ | :------------------------------------------------------------------------------- |
-| `package.json`                        | `name`, `description`, `homepage`, `bugs.url`, `repository.url`, `author`        |
-| `README.md`                           | Project title, tagline, hook snippet, every `TitusKirch/scaffold` link           |
-| `LICENSE`                             | Copyright year + holder                                                          |
-| `CODE_OF_CONDUCT.md`                  | Enforcement contact email                                                        |
-| `CONTRIBUTING.md`                     | Every `TitusKirch/scaffold` link, the development setup section                  |
-| `SECURITY.md`                         | Advisory URL, contact email, scope wording                                       |
-| `.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml`, `question.yml` | Links pointing to `TitusKirch/scaffold` |
-| `.github/pull_request_template.md`    | Example commit message in the title hint                                         |
-| `release-please-config.json`          | `packages["."]["package-name"]`                                                  |
-| `CLAUDE.md`                           | **Delete** and regenerate with `/init` in Claude Code — it's scaffold-specific  |
+## 🗺️ Coverage
 
-> [!TIP]
-> A quick `grep -rn "TitusKirch/scaffold" .` catches every reference in one sweep.
+Scope is **guild infrastructure, not message content** (no `discord_message`). Snowflake ids and permission bitfields are modelled as strings to preserve 64-bit precision.
 
-## 🔁 Resetting release-please
+<details>
+<summary>Full coverage</summary>
 
-`scaffold` ships with an initial manifest pinned at `0.0.0`. For most cases you can leave it alone — release-please will simply propose a first release PR after your first conventional commit on `main`. If you want a truly clean slate:
+- **Guild** — `discord_managed_server` (manage an existing guild, import-first), `discord_role`, `discord_role_everyone`, `discord_emoji`, `discord_guild_ban`, `discord_guild_widget`, `discord_welcome_screen`, `discord_server_onboarding`, `discord_scheduled_event`, `discord_auto_moderation_rule`.
+- **Channels** — `discord_category_channel`, `discord_text_channel`, `discord_voice_channel`, `discord_news_channel`, `discord_stage_channel`, `discord_forum_channel` (with tags), `discord_media_channel`, `discord_thread`, `discord_channel_permission`, `discord_webhook`, `discord_invite`.
+- **Members** — `discord_member_roles` (authoritative), `discord_member_nickname`.
+- **Application** — `discord_application_command` (global or guild).
+- **Data sources** — `discord_permission`, `discord_color`, `discord_local_image`, `discord_server`, `discord_role`, `discord_member`, `discord_user`, `discord_channel`, `discord_invite`.
 
-1. **Manifest** — make sure `.release-please-manifest.json` is `{ ".": "0.0.0" }` (the default).
-2. **Changelog** — delete `CHANGELOG.md` if your fresh repo somehow inherited one.
-3. **Config** — update `release-please-config.json` → `packages["."]["package-name"]` to your repo name.
-4. **Workflow permissions** — in **Settings → Actions → General → Workflow permissions**, enable **Read and write permissions** so release-please can open its PR.
-5. **Tags & releases (optional)** — if you copied the repo with history, drop old tags:
+</details>
 
-   ```bash
-   git tag -l | xargs -r git tag -d
-   ```
+## 📚 Documentation
 
-   …and clear any stale entries on the GitHub **Releases** tab.
-
-6. **First commit** — push a Conventional Commit on `main` (`feat: …`, `fix: …`). release-please opens the initial release PR; merge it and your first tagged release ships.
-
-## 💡 Why "scaffold" and not "template-\*"
-
-Single word, brandable, language-neutral. Future stack-specific templates can sit next to it as `scaffold-laravel`, `scaffold-nuxt`, etc.
+Per-resource docs live under [`docs/`](docs/), generated from the schema with `make docs` (build + export schema + tfplugindocs).
 
 ## 🤝 Contributing
 
-PRs welcome. Conventional Commits required (enforced via commitlint). Husky runs the project's linters/formatters on `git commit`.
+PRs welcome. Conventional Commits required (enforced via commitlint). Husky runs the linters/formatters on `git commit`.
 
 > [!TIP]
-> Run `pnpm check:fix` before pushing — CI will catch what husky missed.
+> Run `make build && go vet ./...` before pushing — CI will catch what husky missed.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
