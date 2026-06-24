@@ -5,11 +5,31 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/kirchDev/terraform-provider-discord/internal/client"
 )
+
+// keepTimestamp reconciles an RFC3339 timestamp read back from the API with the
+// one already in state/config. Discord re-formats timestamps (e.g. sends back
+// `...+00:00` for a `...000Z` input), which would otherwise look like drift. If
+// the current value denotes the same instant as the API value, the current
+// (config) value is kept; otherwise the API value wins (real drift / import).
+func keepTimestamp(current types.String, apiVal string) types.String {
+	if apiVal == "" {
+		return types.StringNull()
+	}
+	if !current.IsNull() && !current.IsUnknown() {
+		a, err1 := time.Parse(time.RFC3339, current.ValueString())
+		b, err2 := time.Parse(time.RFC3339, apiVal)
+		if err1 == nil && err2 == nil && a.Equal(b) {
+			return current
+		}
+	}
+	return types.StringValue(apiVal)
+}
 
 // strPtrOrNil returns a *string for a tfsdk string, or nil when the value is null
 // or unknown — handy for JSON bodies where an absent field must serialise as null.

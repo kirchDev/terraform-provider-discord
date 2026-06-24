@@ -253,8 +253,12 @@ func (r *scheduledEventResource) readInto(ctx context.Context, m *scheduledEvent
 	}
 	m.Name = types.StringValue(a.Name)
 	m.Description = types.StringPointerValue(a.Description)
-	m.ScheduledStartTime = types.StringValue(a.ScheduledStartTime)
-	m.ScheduledEndTime = types.StringPointerValue(a.ScheduledEndTime)
+	m.ScheduledStartTime = keepTimestamp(m.ScheduledStartTime, a.ScheduledStartTime)
+	endVal := ""
+	if a.ScheduledEndTime != nil {
+		endVal = *a.ScheduledEndTime
+	}
+	m.ScheduledEndTime = keepTimestamp(m.ScheduledEndTime, endVal)
 	m.PrivacyLevel = types.Int64Value(a.PrivacyLevel)
 	m.EntityType = types.Int64Value(a.EntityType)
 	m.ChannelID = types.StringPointerValue(a.ChannelID)
