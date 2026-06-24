@@ -2,28 +2,29 @@
 
 ## Scope
 
-`scaffold` is a **template repository** — it contains configuration files, GitHub workflows, and meta documents that are copied into new repositories. It is not a runtime package and has no users in the traditional sense.
+`terraform-provider-discord` is an OpenTofu / Terraform provider that talks to the Discord REST API on your behalf. Because it handles a **Discord bot token** — which can manage every guild the bot belongs to — security issues here can have direct impact on production communities.
 
-The supported "version" is always the **tip of `main`**. There are no historical branches to back-port fixes to; downstream repositories should re-pull the relevant file(s) from `main` if a vulnerability is discovered in the shipped templates.
+While the provider is **pre-1.0**, the supported "version" is the **latest release** (and the tip of `main`). Once it stabilises, supported versions will be listed here.
 
 ## Reporting a Vulnerability
 
 **Please do not file a public GitHub issue for security problems.**
 
-In the context of this template, a "vulnerability" typically means:
+In the context of this provider, a "vulnerability" typically means:
 
-- An insecure default in a shipped workflow (e.g. overly broad `permissions`).
-- A misconfigured Action that could leak secrets.
-- A dependency in `package.json` that introduces a known CVE.
+- Leaking the Discord bot token (e.g. into logs, state, or error messages beyond what's unavoidable).
+- Insecure handling of credentials or secrets in transit.
+- A resource that fails to validate input and lets an attacker reach unintended Discord API calls.
+- A dependency that introduces a known CVE.
 
 Use one of the following private channels:
 
-1. **GitHub Private Vulnerability Reporting** (preferred): open a private advisory at <https://github.com/TitusKirch/scaffold/security/advisories/new>.
+1. **GitHub Private Vulnerability Reporting** (preferred): open a private advisory at <https://github.com/kirchDev/terraform-provider-discord/security/advisories/new>.
 2. **Email**: [titus.kirch@kirch.dev](mailto:titus.kirch@kirch.dev). PGP available on request.
 
 Please include:
 
-- A description of the vulnerability and its impact on downstream repositories.
+- A description of the vulnerability and its impact.
 - Steps to reproduce.
 - Any suggested fix, if you have one.
 
