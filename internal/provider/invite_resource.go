@@ -130,14 +130,22 @@ func (r *inviteResource) Create(ctx context.Context, req resource.CreateRequest,
 		body["unique"] = v.ValueBool()
 	}
 
+	// The create response includes the invite metadata (max_age/max_uses/
+	// temporary); GET /invites/{code} does not, so capture them here.
 	var inv struct {
-		Code string `json:"code"`
+		Code      string `json:"code"`
+		MaxAge    int64  `json:"max_age"`
+		MaxUses   int64  `json:"max_uses"`
+		Temporary bool   `json:"temporary"`
 	}
 	if err := r.client.Write(ctx, "POST", "/channels/"+plan.ChannelID.ValueString()+"/invites", body, &inv); err != nil {
 		resp.Diagnostics.AddError("Unable to create Discord invite", err.Error())
 		return
 	}
 	plan.Code = types.StringValue(inv.Code)
+	plan.MaxAge = types.Int64Value(inv.MaxAge)
+	plan.MaxUses = types.Int64Value(inv.MaxUses)
+	plan.Temporary = types.BoolValue(inv.Temporary)
 	plan.URL = types.StringValue("https://discord.gg/" + inv.Code)
 
 	if err := r.readInto(ctx, &plan); err != nil {
@@ -190,14 +198,15 @@ func (r *inviteResource) ImportState(ctx context.Context, req resource.ImportSta
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("code"), req.ID)...)
 }
 
-// readInto GETs the invite by code and refreshes its fields.
+// readInto GETs the invite by code to confirm it still exists and refresh the
+// channel id and URL. It deliberately does NOT touch max_age/max_uses/temporary:
+// GET /invites/{code} omits those metadata fields (they're only returned by the
+// channel/guild invite listing), and invites are immutable, so the create-time
+// values in state are authoritative.
 func (r *inviteResource) readInto(ctx context.Context, m *inviteResourceModel) error {
 	var inv struct {
-		Code      string `json:"code"`
-		MaxAge    int64  `json:"max_age"`
-		MaxUses   int64  `json:"max_uses"`
-		Temporary bool   `json:"temporary"`
-		Channel   struct {
+		Code    string `json:"code"`
+		Channel struct {
 			ID string `json:"id"`
 		} `json:"channel"`
 	}
@@ -205,9 +214,6 @@ func (r *inviteResource) readInto(ctx context.Context, m *inviteResourceModel) e
 		return err
 	}
 	m.ChannelID = types.StringValue(inv.Channel.ID)
-	m.MaxAge = types.Int64Value(inv.MaxAge)
-	m.MaxUses = types.Int64Value(inv.MaxUses)
-	m.Temporary = types.BoolValue(inv.Temporary)
 	m.URL = types.StringValue("https://discord.gg/" + inv.Code)
 	return nil
 }
