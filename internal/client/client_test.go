@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -220,6 +221,36 @@ func TestNotFoundAndErrorCode(t *testing.T) {
 	}
 	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusForbidden || apiErr.Code != 50013 {
 		t.Errorf("expected 403 code 50013, got %v", err)
+	}
+}
+
+func TestWriteMultipart(t *testing.T) {
+	// The file part must carry the real Content-Type (image/png), not the
+	// multipart default (octet-stream) — Discord rejects the latter as Invalid Asset.
+	var rec recorded
+	c := newServer(t, &rec, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"id":"9"}`)
+	})
+
+	var out struct {
+		ID string `json:"id"`
+	}
+	err := c.WriteMultipart(context.Background(), http.MethodPost, "/guilds/1/stickers",
+		map[string]string{"name": "starbear", "tags": "test"}, "file", "sticker.png", "image/png", []byte("PNGDATA"), &out)
+	if err != nil {
+		t.Fatalf("WriteMultipart: %v", err)
+	}
+	if out.ID != "9" {
+		t.Errorf("id = %q, want 9", out.ID)
+	}
+	if !strings.HasPrefix(rec.ctype, "multipart/form-data") {
+		t.Errorf("content-type = %q, want multipart/form-data", rec.ctype)
+	}
+	body := string(rec.body)
+	for _, want := range []string{`name="file"; filename="sticker.png"`, "Content-Type: image/png", "PNGDATA", `name="name"`, "starbear"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("multipart body missing %q:\n%s", want, body)
+		}
 	}
 }
 
