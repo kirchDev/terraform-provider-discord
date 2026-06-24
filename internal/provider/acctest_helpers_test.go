@@ -97,6 +97,8 @@ func (m *mockDiscord) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.serveGuildItem(w, r, segs[1])
 	case len(segs) == 4 && segs[0] == "guilds" && segs[2] == "members":
 		m.serveMemberItem(w, r, segs[1]+"/"+segs[3])
+	case len(segs) == 6 && segs[0] == "guilds" && segs[2] == "members" && segs[4] == "roles":
+		m.serveMemberRole(w, r, segs[1]+"/"+segs[3], segs[5])
 	case len(segs) == 4 && segs[0] == "guilds" && segs[2] == "auto-moderation" && segs[3] == "rules":
 		m.serveAutomodCollection(w, r, segs[1])
 	case len(segs) == 5 && segs[0] == "guilds" && segs[2] == "auto-moderation" && segs[3] == "rules":
@@ -152,6 +154,39 @@ func (m *mockDiscord) serveMemberItem(w http.ResponseWriter, r *http.Request, ke
 			a[k] = v
 		}
 		writeJSON(w, http.StatusOK, a)
+	default:
+		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// serveMemberRole adds/removes a single role on a member (the non-authoritative
+// discord_member_role endpoints), mutating the member's stored roles array.
+func (m *mockDiscord) serveMemberRole(w http.ResponseWriter, r *http.Request, key, roleID string) {
+	a, ok := m.members[key]
+	if !ok {
+		a = map[string]any{"roles": []any{}, "user": map[string]any{"id": "555", "username": "tester"}}
+		m.members[key] = a
+	}
+	roles, _ := a["roles"].([]any)
+	switch r.Method {
+	case http.MethodPut:
+		for _, rid := range roles {
+			if rid == roleID {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
+		a["roles"] = append(roles, roleID)
+		w.WriteHeader(http.StatusNoContent)
+	case http.MethodDelete:
+		next := make([]any, 0, len(roles))
+		for _, rid := range roles {
+			if rid != roleID {
+				next = append(next, rid)
+			}
+		}
+		a["roles"] = next
+		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
 	}
