@@ -63,6 +63,7 @@ resource "discord_managed_server" "main" {
 
 - `banner_hash` (String) Current guild banner hash.
 - `discovery_splash_hash` (String) Current discovery splash hash.
+- `features` (Set of String) Enabled guild feature flags (e.g. `COMMUNITY`, `NEWS`, `BANNER`). Read-only — Discord mixes mutable and immutable features, so toggling them (e.g. enabling Community) is not exposed here.
 - `icon_hash` (String) Current guild icon hash.
 - `id` (String) Guild ID (equal to `server_id`).
 - `splash_hash` (String) Current invite splash hash.
