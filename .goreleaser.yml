@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
+#
+# Builds and GPG-signs the provider artifacts for the OpenTofu / Terraform
+# registry. Invoked by .github/workflows/release-please.yml when release-please
+# cuts a release; this run appends the signed binaries, checksums and manifest to
+# the release release-please created (see `release.mode` below). The registry
+# needs, per tag:
+#   terraform-provider-discord_<ver>_<os>_<arch>.zip   (one per platform)
+#   terraform-provider-discord_<ver>_SHA256SUMS
+#   terraform-provider-discord_<ver>_SHA256SUMS.sig    (detached GPG sig)
+#   terraform-provider-discord_<ver>_manifest.json     (protocol versions)
+version: 2
+
+project_name: terraform-provider-discord
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    # Reproducible builds: stamp the binary with the commit time, not build time.
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - '-s -w -X main.version={{ .Version }}'
+    goos:
+      - darwin
+      - freebsd
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - '386'
+      - arm
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: '386'
+    binary: '{{ .ProjectName }}_v{{ .Version }}'
+
+archives:
+  - formats: [zip]
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
+  algorithm: sha256
+  extra_files:
+    - glob: terraform-registry-manifest.json
+      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
+
+signs:
+  - artifacts: checksum
+    args:
+      - '--batch'
+      - '--local-user'
+      - '{{ .Env.GPG_FINGERPRINT }}'
+      - '--output'
+      - '${signature}'
+      - '--detach-sign'
+      - '${artifact}'
+
+release:
+  # release-please already created the GitHub release for this tag; append the
+  # signed artifacts to it rather than trying to create a second one.
+  mode: append
+  extra_files:
+    - glob: terraform-registry-manifest.json
+      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
+
+changelog:
+  # release-please owns the changelog (CHANGELOG.md); don't double-generate it.
+  disable: true

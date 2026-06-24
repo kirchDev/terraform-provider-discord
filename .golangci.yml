@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
+#
+# golangci-lint config (v2). The default linters (errcheck, govet, ineffassign,
+# staticcheck, unused) stay on; a few extra catch common provider mistakes
+# (unclosed bodies, swallowed errors, misspellings).
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - bodyclose # HTTP response bodies must be closed (the client's retry loop)
+    - misspell
+    - nilerr # returning nil after a non-nil error check
+    - unconvert # redundant type conversions
+  exclusions:
+    rules:
+      # Test mocks intentionally ignore write errors on the response writer.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
