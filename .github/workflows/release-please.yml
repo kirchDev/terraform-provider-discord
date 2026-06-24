@@ -30,7 +30,7 @@ jobs:
           access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
           cloud_region: eu
           secrets: |
-            29f8317d-29f7-46af-834b-b4550012d477 > KIRCHDEV_RELEASE_APP_PEM
+            3a3459f0-c986-4ff3-a36b-b4550012d41e > KIRCHDEV_RELEASE_APP_PEM
 
       - name: Mint Release App token
         id: app-token

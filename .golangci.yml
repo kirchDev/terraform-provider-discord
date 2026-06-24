@@ -3,7 +3,7 @@
 # golangci-lint config (v2). The default linters (errcheck, govet, ineffassign,
 # staticcheck, unused) stay on; a few extra catch common provider mistakes
 # (unclosed bodies, swallowed errors, misspellings).
-version: "2"
+version: '2'
 
 run:
   timeout: 5m

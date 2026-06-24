@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A first-party **OpenTofu / Terraform provider for [Discord](https://discord.com)**, owned by kirchDev. It manages Discord *guild infrastructure* (roles, channels, permission overwrites, members, webhooks, events, moderation, …) as code so a Discord estate can live in the same IaC workflow as the rest of the kirchDev infrastructure.
+A first-party **OpenTofu / Terraform provider for [Discord](https://discord.com)**, owned by kirchDev. It manages Discord _guild infrastructure_ (roles, channels, permission overwrites, members, webhooks, events, moderation, …) as code so a Discord estate can live in the same IaC workflow as the rest of the kirchDev infrastructure.
 
 - **Provider type (HCL):** `discord` → `provider "discord" {}`
 - **OpenTofu registry address:** `kirchdev/discord`
@@ -34,15 +34,15 @@ Two layers coexist:
 
 Go (via `GNUmakefile`; needs **Go ≥ 1.25** — `terraform-plugin-framework v1.19` requires it):
 
-| Command         | What it does                                                                  |
-| :-------------- | :---------------------------------------------------------------------------- |
-| `make build`    | `go build -o terraform-provider-discord`                                      |
-| `make tidy`     | `go mod tidy`                                                                 |
-| `make fmt`      | `gofmt -s -w .`                                                               |
-| `make vet`      | `go vet ./...`                                                                |
-| `make docs`     | render `docs/` from the schema (build + export + tfplugindocs)               |
-| `make test`     | `go test ./...`                                                               |
-| `make testacc`  | `TF_ACC=1 go test ./...` — mock acceptance tests; needs a TF binary, no token |
+| Command        | What it does                                                                  |
+| :------------- | :---------------------------------------------------------------------------- |
+| `make build`   | `go build -o terraform-provider-discord`                                      |
+| `make tidy`    | `go mod tidy`                                                                 |
+| `make fmt`     | `gofmt -s -w .`                                                               |
+| `make vet`     | `go vet ./...`                                                                |
+| `make docs`    | render `docs/` from the schema (build + export + tfplugindocs)                |
+| `make test`    | `go test ./...`                                                               |
+| `make testacc` | `TF_ACC=1 go test ./...` — mock acceptance tests; needs a TF binary, no token |
 
 Node meta layer: `pnpm install` (wires husky hooks), `pnpm check` / `pnpm check:fix`. CI (`.github/workflows/ci.yml`) runs a **Go job** (build·vet·gofmt·test + `TF_ACC` mock acceptance tests, OpenTofu installed) and a **Lint job** (oxlint + oxfmt).
 
@@ -54,7 +54,7 @@ Node meta layer: `pnpm install` (wires husky hooks), `pnpm check` / `pnpm check:
 - `internal/client/client.go` — flat-JSON REST client: `Get`, `List` (returns `[]json.RawMessage`), `Write(method, path, body, &out)`, `Delete`, `client.NotFound(err)`, `APIError`.
 - `internal/provider/helpers.go` — `notFound(err)` (covers a real 404 **and** a list-scan miss), `findInList` (read an item out of a collection where Discord has no clean single-item read, e.g. a role within a guild), `strSet`/`setOfStrings`/`strPtrOrNil`.
 - Exemplars new entities follow: `role_resource.go` (CRUD), `text_channel_resource.go` (channel kinds — share `channel_common.go`), `server_data_source.go` (API read), `color_data_source.go` (compute-only), `permission_data_source.go`.
-- **Manage-not-create resources** (`discord_managed_server`, `discord_role_everyone`, singletons like welcome screen / onboarding): a bot can't create/delete these, so Create *adopts* via PATCH and Delete is a no-op. Import-first; pair `discord_managed_server` with `prevent_destroy`.
+- **Manage-not-create resources** (`discord_managed_server`, `discord_role_everyone`, singletons like welcome screen / onboarding): a bot can't create/delete these, so Create _adopts_ via PATCH and Delete is a no-op. Import-first; pair `discord_managed_server` with `prevent_destroy`.
 - **`discord_role_everyone.id == server_id`** (the @everyone role id is the guild id).
 - **Role position** has its own endpoint (modify-role-positions, a `[{id, position}]` PATCH on the guild role collection) — not the role-modify body.
 - **`sync_perms_with_category`** copies the parent category's overwrites onto the channel; it conflicts with explicit `discord_channel_permission` overwrites on the same channel (own them one way or the other).
