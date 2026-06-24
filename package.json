@@ -1,32 +1,28 @@
 {
   "$schema": "https://www.schemastore.org/package.json",
-  "name": "scaffold",
-  "version": "0.1.1",
-  "description": "Language-agnostic baseline template for new kirchDev repositories.",
+  "name": "terraform-provider-discord",
+  "version": "0.0.0",
+  "private": false,
+  "description": "OpenTofu / Terraform provider for Discord.",
   "keywords": [
-    "commitlint",
-    "conventional-commits",
-    "dependabot",
-    "github-template",
-    "husky",
+    "discord",
+    "guild",
+    "iac",
+    "infrastructure-as-code",
     "kirchdev",
-    "nodejs",
-    "oxfmt",
-    "oxlint",
-    "pnpm",
-    "release-please",
-    "scaffold",
-    "template"
+    "opentofu",
+    "terraform",
+    "terraform-provider"
   ],
-  "homepage": "https://github.com/TitusKirch/scaffold#readme",
+  "homepage": "https://github.com/kirchDev/terraform-provider-discord#readme",
   "bugs": {
-    "url": "https://github.com/TitusKirch/scaffold/issues"
+    "url": "https://github.com/kirchDev/terraform-provider-discord/issues"
   },
   "license": "MIT",
   "author": "Titus Kirch <titus.kirch@kirch.dev>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TitusKirch/scaffold.git"
+    "url": "git+https://github.com/kirchDev/terraform-provider-discord.git"
   },
   "type": "module",
   "scripts": {

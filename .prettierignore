@@ -1,0 +1,8 @@
+# Ignore file for oxfmt (it reads .gitignore + .prettierignore by default).
+# Keep the formatter from fighting code generators: these files are generated,
+# so reformatting them only creates churn that the next generation undoes.
+#
+#   docs/        -> rendered by tfplugindocs (`make docs`)
+#   CHANGELOG.md -> maintained by release-please
+docs/
+CHANGELOG.md
