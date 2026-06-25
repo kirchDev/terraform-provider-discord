@@ -17,3 +17,20 @@ resource "discord_auto_moderation_rule" "no_spam" {
     },
   ]
 }
+
+# Mention spam rule (trigger_type 5) that also enables raid protection.
+resource "discord_auto_moderation_rule" "no_mention_spam" {
+  server_id                       = "123456789012345678"
+  name                            = "Block mention spam"
+  event_type                      = 1 # message send
+  trigger_type                    = 5 # mention spam
+  enabled                         = true
+  mention_total_limit             = 5
+  mention_raid_protection_enabled = true
+
+  actions = [
+    {
+      type = 1 # block message
+    },
+  ]
+}

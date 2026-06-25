@@ -62,11 +62,12 @@ type automodActionWire struct {
 }
 
 type automodTriggerMetaWire struct {
-	KeywordFilter     []string `json:"keyword_filter"`
-	RegexPatterns     []string `json:"regex_patterns"`
-	Presets           []int64  `json:"presets"`
-	AllowList         []string `json:"allow_list"`
-	MentionTotalLimit int64    `json:"mention_total_limit"`
+	KeywordFilter                []string `json:"keyword_filter"`
+	RegexPatterns                []string `json:"regex_patterns"`
+	Presets                      []int64  `json:"presets"`
+	AllowList                    []string `json:"allow_list"`
+	MentionTotalLimit            int64    `json:"mention_total_limit"`
+	MentionRaidProtectionEnabled *bool    `json:"mention_raid_protection_enabled,omitempty"`
 }
 
 type automodRuleWire struct {
@@ -83,20 +84,21 @@ type automodRuleWire struct {
 }
 
 type autoModerationRuleResourceModel struct {
-	ServerID          types.String `tfsdk:"server_id"`
-	ID                types.String `tfsdk:"id"`
-	Name              types.String `tfsdk:"name"`
-	EventType         types.Int64  `tfsdk:"event_type"`
-	TriggerType       types.Int64  `tfsdk:"trigger_type"`
-	Enabled           types.Bool   `tfsdk:"enabled"`
-	KeywordFilter     types.Set    `tfsdk:"keyword_filter"`
-	RegexPatterns     types.Set    `tfsdk:"regex_patterns"`
-	Presets           types.Set    `tfsdk:"presets"`
-	AllowList         types.Set    `tfsdk:"allow_list"`
-	MentionTotalLimit types.Int64  `tfsdk:"mention_total_limit"`
-	Actions           types.List   `tfsdk:"actions"`
-	ExemptRoles       types.Set    `tfsdk:"exempt_roles"`
-	ExemptChannels    types.Set    `tfsdk:"exempt_channels"`
+	ServerID                     types.String `tfsdk:"server_id"`
+	ID                           types.String `tfsdk:"id"`
+	Name                         types.String `tfsdk:"name"`
+	EventType                    types.Int64  `tfsdk:"event_type"`
+	TriggerType                  types.Int64  `tfsdk:"trigger_type"`
+	Enabled                      types.Bool   `tfsdk:"enabled"`
+	KeywordFilter                types.Set    `tfsdk:"keyword_filter"`
+	RegexPatterns                types.Set    `tfsdk:"regex_patterns"`
+	Presets                      types.Set    `tfsdk:"presets"`
+	AllowList                    types.Set    `tfsdk:"allow_list"`
+	MentionTotalLimit            types.Int64  `tfsdk:"mention_total_limit"`
+	MentionRaidProtectionEnabled types.Bool   `tfsdk:"mention_raid_protection_enabled"`
+	Actions                      types.List   `tfsdk:"actions"`
+	ExemptRoles                  types.Set    `tfsdk:"exempt_roles"`
+	ExemptChannels               types.Set    `tfsdk:"exempt_channels"`
 }
 
 func (r *autoModerationRuleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -109,8 +111,8 @@ func (r *autoModerationRuleResource) Schema(_ context.Context, _ resource.Schema
 	}
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages an auto-moderation rule in a Discord guild. The `trigger_metadata` fields " +
-			"(`keyword_filter`, `regex_patterns`, `presets`, `allow_list`, `mention_total_limit`) apply only to the " +
-			"relevant `trigger_type`.",
+			"(`keyword_filter`, `regex_patterns`, `presets`, `allow_list`, `mention_total_limit`, " +
+			"`mention_raid_protection_enabled`) apply only to the relevant `trigger_type`.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the guild.",
@@ -131,8 +133,15 @@ func (r *autoModerationRuleResource) Schema(_ context.Context, _ resource.Schema
 			"allow_list":          optComputedStrSet("Substrings exempt from the trigger."),
 			"presets":             schema.SetAttribute{MarkdownDescription: "Keyword preset ids (`1` profanity, `2` sexual content, `3` slurs).", ElementType: types.Int64Type, Optional: true, Computed: true},
 			"mention_total_limit": schema.Int64Attribute{MarkdownDescription: "Max unique mentions per message (trigger type mention spam).", Optional: true, Computed: true},
-			"exempt_roles":        optComputedStrSet("Role ids exempt from the rule."),
-			"exempt_channels":     optComputedStrSet("Channel ids exempt from the rule."),
+			"mention_raid_protection_enabled": schema.BoolAttribute{
+				MarkdownDescription: "Whether to automatically detect and block mention raids (trigger type `5`, mention spam). " +
+					"Because Discord replaces `trigger_metadata` wholesale on every update, this provider always re-sends the " +
+					"managed value so the setting is never silently cleared.",
+				Optional: true,
+				Computed: true,
+			},
+			"exempt_roles":    optComputedStrSet("Role ids exempt from the rule."),
+			"exempt_channels": optComputedStrSet("Channel ids exempt from the rule."),
 			"actions": schema.ListNestedAttribute{
 				MarkdownDescription: "Actions taken when the rule triggers.",
 				Required:            true,
@@ -200,6 +209,9 @@ func (r *autoModerationRuleResource) body(ctx context.Context, m *autoModeration
 	}
 	if v := m.MentionTotalLimit; !v.IsNull() && !v.IsUnknown() {
 		meta["mention_total_limit"] = v.ValueInt64()
+	}
+	if v := m.MentionRaidProtectionEnabled; !v.IsNull() && !v.IsUnknown() {
+		meta["mention_raid_protection_enabled"] = v.ValueBool()
 	}
 	if len(meta) > 0 {
 		body["trigger_metadata"] = meta
@@ -359,6 +371,9 @@ func (r *autoModerationRuleResource) readInto(ctx context.Context, m *autoModera
 	}
 	m.Presets = presets
 	m.MentionTotalLimit = types.Int64Value(tm.MentionTotalLimit)
+	// A nil pointer (field absent for non-mention-spam rules) maps to null, so
+	// the value is not echoed back into trigger_metadata where it does not apply.
+	m.MentionRaidProtectionEnabled = types.BoolPointerValue(tm.MentionRaidProtectionEnabled)
 
 	actions := make([]automodActionModel, 0, len(a.Actions))
 	for _, act := range a.Actions {
