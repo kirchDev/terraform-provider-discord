@@ -57,3 +57,54 @@ resource "discord_auto_moderation_rule" "test" {
 		},
 	})
 }
+
+// TestAccAutoModerationRuleResourceMentionSpam covers the mention-spam trigger
+// (trigger_type 5): mention_total_limit and mention_raid_protection_enabled
+// round-trip through create → update → import.
+func TestAccAutoModerationRuleResourceMentionSpam(t *testing.T) {
+	newMockDiscord(t)
+	const rn = "discord_auto_moderation_rule.mention"
+
+	cfg := func(limit int, raid bool) string {
+		return fmt.Sprintf(`
+resource "discord_auto_moderation_rule" "mention" {
+  server_id                       = "999"
+  name                            = "no mention spam"
+  event_type                      = 1
+  trigger_type                    = 5
+  enabled                         = true
+  mention_total_limit             = %d
+  mention_raid_protection_enabled = %t
+  actions                         = [{ type = 1 }]
+}
+`, limit, raid)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{ // create with raid protection on
+				Config: cfg(5, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "trigger_type", "5"),
+					resource.TestCheckResourceAttr(rn, "mention_total_limit", "5"),
+					resource.TestCheckResourceAttr(rn, "mention_raid_protection_enabled", "true"),
+					resource.TestCheckResourceAttrSet(rn, "id"),
+				),
+			},
+			{ // update the limit, keep raid protection on
+				Config: cfg(10, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "mention_total_limit", "10"),
+					resource.TestCheckResourceAttr(rn, "mention_raid_protection_enabled", "true"),
+				),
+			},
+			{ // import by "server_id/rule_id"
+				ResourceName:      rn,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateIdFunc: importIDFunc(rn, "server_id", "id"),
+			},
+		},
+	})
+}
