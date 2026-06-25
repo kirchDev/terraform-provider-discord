@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/kirchDev/terraform-provider-discord/compare/v0.3.1...v0.3.2) (2026-06-25)
+
+
+### Bug Fixes
+
+* **onboarding:** stop inconsistent result on nested ids and descriptions ([8302ed2](https://github.com/kirchDev/terraform-provider-discord/commit/8302ed2d0018714a58e47f992485834c8d233f37))
+
 ## [0.3.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.3.0...v0.3.1) (2026-06-25)
 
 
