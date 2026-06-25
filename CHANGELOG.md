@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.3.0...v0.3.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* align dependabot labels to the stack: convention ([540c269](https://github.com/kirchDev/terraform-provider-discord/commit/540c269c3ea873a6ef7887ecb5134fed90512e4c))
+* **channels:** never send invalid enum 0 on update ([40bdada](https://github.com/kirchDev/terraform-provider-discord/commit/40bdada4daed4f643fe063a5b04cf58d8de9144b))
+
 ## [0.3.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.2.0...v0.3.0) (2026-06-25)
 
 
