@@ -1,26 +1,26 @@
+# pnpm settings. Moved here from .npmrc: pnpm 10+ reads only auth/registry
+# settings from .npmrc — every other setting must live in this file.
+
 # Automatically install missing peer dependencies when possible.
-auto-install-peers=true
+autoInstallPeers: true
 
 # Require packages to be at least 4320 minutes (3 days) old before install.
-minimumReleaseAge=4320
-
-# Prevent dependency downgrades according to the configured trust policy.
-trustPolicy=no-downgrade
+minimumReleaseAge: 4320
 
 # Enforce package manager checks for project consistency.
-package-manager-strict=true
+packageManagerStrict: true
 
 # Do not require an exact package manager version match.
-package-manager-strict-version=false
+packageManagerStrictVersion: false
 
 # Prefer using the lockfile as-is for deterministic installs.
-prefer-frozen-lockfile=true
+preferFrozenLockfile: true
 
 # Verify package integrity in the store before linking.
-verify-store-integrity=true
+verifyStoreIntegrity: true
 
 # Do not fail installs on peer dependency conflicts.
-strict-peer-dependencies=false
+strictPeerDependencies: false
 
 # Use pnpm's isolated node_modules linker layout.
-node-linker=isolated
+nodeLinker: isolated
