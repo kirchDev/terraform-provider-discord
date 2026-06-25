@@ -133,8 +133,8 @@ func (r *serverOnboardingResource) Schema(_ context.Context, _ resource.SchemaRe
 	snowflakeID := func(noun string) schema.StringAttribute {
 		return schema.StringAttribute{
 			MarkdownDescription: "Snowflake ID of the " + noun + ", assigned by Discord.",
-			Computed:      true,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			Computed:            true,
+			PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		}
 	}
 	optComputedStrSet := func(desc string) schema.SetAttribute {
