@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.1.0...v0.2.0) (2026-06-25)
+
+
+### Features
+
+* **automod:** support mention_raid_protection_enabled ([c218d84](https://github.com/kirchDev/terraform-provider-discord/commit/c218d84de4fce3cf468c75d8f0237fb895e29af2))
+
 ## 0.1.0 (2026-06-24)
 
 
