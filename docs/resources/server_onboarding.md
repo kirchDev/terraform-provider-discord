@@ -3,23 +3,44 @@
 page_title: "discord_server_onboarding Resource - discord"
 subcategory: ""
 description: |-
-  Manages the onboarding configuration of a Community Discord guild (a singleton per guild).
+  Manages the onboarding configuration of a Community Discord guild (a singleton per guild). The prompts tree, enabled, mode and default_channel_ids are all refreshed from the API so drift is detected.
 ---
 
 # discord_server_onboarding (Resource)
 
-Manages the onboarding configuration of a Community Discord guild (a singleton per guild).
+Manages the onboarding configuration of a Community Discord guild (a singleton per guild). The `prompts` tree, `enabled`, `mode` and `default_channel_ids` are all refreshed from the API so drift is detected.
 
 ## Example Usage
 
 ```terraform
-# prompts_json carries the onboarding prompts as a raw JSON string.
+# Onboarding with one multiple-choice prompt offering two opt-in options.
 resource "discord_server_onboarding" "main" {
   server_id           = "123456789012345678"
   enabled             = true
   mode                = 0
   default_channel_ids = ["456789012345678901"]
-  prompts_json        = jsonencode([])
+
+  prompts = [
+    {
+      type          = 0 # multiple choice
+      title         = "What are you here for?"
+      single_select = false
+      required      = true
+      in_onboarding = true
+
+      options = [
+        {
+          title       = "Announcements"
+          description = "Get notified about the latest news."
+          emoji_name  = "📣" # unicode emoji
+          channel_ids = ["456789012345678901"]
+        },
+        {
+          title = "Just browsing"
+        },
+      ]
+    },
+  ]
 }
 ```
 
@@ -35,4 +56,36 @@ resource "discord_server_onboarding" "main" {
 - `default_channel_ids` (Set of String) Channel ids members are opted into by default.
 - `enabled` (Boolean) Whether onboarding is enabled.
 - `mode` (Number) Onboarding mode (`0` default, `1` advanced).
-- `prompts_json` (String) Onboarding prompts as a raw JSON array (Discord's `prompts` field). Write-only — it is sent on apply but not refreshed into state, so it does not detect drift.
+- `prompts` (Attributes List) Ordered onboarding prompts shown to new members. (see [below for nested schema](#nestedatt--prompts))
+
+<a id="nestedatt--prompts"></a>
+### Nested Schema for `prompts`
+
+Required:
+
+- `options` (Attributes List) Selectable options for the prompt. (see [below for nested schema](#nestedatt--prompts--options))
+- `title` (String) Prompt title.
+- `type` (Number) Prompt type (`0` multiple choice, `1` dropdown).
+
+Optional:
+
+- `id` (String) Snowflake ID of the prompt. Supply it to preserve an existing prompt across updates; computed when Discord assigns a new one.
+- `in_onboarding` (Boolean) Whether the prompt appears in the onboarding flow (vs. only in Channels & Roles).
+- `required` (Boolean) Whether the prompt must be answered to finish onboarding.
+- `single_select` (Boolean) Whether only a single option may be selected.
+
+<a id="nestedatt--prompts--options"></a>
+### Nested Schema for `prompts.options`
+
+Required:
+
+- `title` (String) Option title.
+
+Optional:
+
+- `channel_ids` (Set of String) Channel ids a member is opted into when selecting this option.
+- `description` (String) Option description.
+- `emoji_id` (String) Snowflake ID of a custom emoji shown next to the option.
+- `emoji_name` (String) Unicode emoji (or the name of a custom emoji) shown next to the option.
+- `id` (String) Snowflake ID of the option. Supply it to preserve an existing option across updates; computed when Discord assigns a new one.
+- `role_ids` (Set of String) Role ids granted when selecting this option.
