@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.2.0...v0.3.0) (2026-06-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **onboarding:** the prompts_json attribute is removed; model onboarding prompts with the structured prompts block instead.
+
+### Features
+
+* **onboarding:** model prompts as structured attributes ([8a28067](https://github.com/kirchDev/terraform-provider-discord/commit/8a280679cfce02006ea59a8499b5645db9f10843))
+
 ## [0.2.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.1.0...v0.2.0) (2026-06-25)
 
 
