@@ -129,7 +129,10 @@ func (r *newsChannelResource) body(m *newsChannelResourceModel) map[string]any {
 	if v := m.Position; !v.IsNull() && !v.IsUnknown() {
 		body["position"] = v.ValueInt64()
 	}
-	if v := m.DefaultAutoArchiveDuration; !v.IsNull() && !v.IsUnknown() {
+	// Never send 0: Discord rejects it (valid: 60/1440/4320/10080) and a channel
+	// that never set this unmarshals the absent field to 0, which would 400 any
+	// update (e.g. a rename) of an imported channel.
+	if v := m.DefaultAutoArchiveDuration; !v.IsNull() && !v.IsUnknown() && v.ValueInt64() != 0 {
 		body["default_auto_archive_duration"] = v.ValueInt64()
 	}
 	return body
