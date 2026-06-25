@@ -132,11 +132,9 @@ func (r *serverOnboardingResource) Metadata(_ context.Context, req resource.Meta
 func (r *serverOnboardingResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	snowflakeID := func(noun string) schema.StringAttribute {
 		return schema.StringAttribute{
-			MarkdownDescription: "Snowflake ID of the " + noun + ". Supply it to preserve an existing " + noun +
-				" across updates; computed when Discord assigns a new one.",
-			Optional:      true,
-			Computed:      true,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			MarkdownDescription: "Snowflake ID of the " + noun + ", assigned by Discord.",
+			Computed:            true,
+			PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		}
 	}
 	optComputedStrSet := func(desc string) schema.SetAttribute {
@@ -222,6 +220,16 @@ func boolOrDefault(v types.Bool, def bool) bool {
 		return def
 	}
 	return v.ValueBool()
+}
+
+// nullIfEmpty maps a nil or empty-string API value to a null attribute, so an
+// unset optional (description / emoji) stays null instead of "" and doesn't trip
+// the post-apply consistency check.
+func nullIfEmpty(p *string) types.String {
+	if p == nil || *p == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(*p)
 }
 
 // apply PUTs the whole onboarding object (the endpoint replaces it wholesale).
@@ -439,13 +447,13 @@ func onboardingOptionsToState(ctx context.Context, wire []onboardingOptionWire) 
 		}
 		emojiID, emojiName := types.StringNull(), types.StringNull()
 		if o.Emoji != nil {
-			emojiID = types.StringPointerValue(o.Emoji.ID)
-			emojiName = types.StringPointerValue(o.Emoji.Name)
+			emojiID = nullIfEmpty(o.Emoji.ID)
+			emojiName = nullIfEmpty(o.Emoji.Name)
 		}
 		models = append(models, onboardingOptionModel{
 			ID:          types.StringValue(o.ID),
 			Title:       types.StringValue(o.Title),
-			Description: types.StringPointerValue(o.Description),
+			Description: nullIfEmpty(o.Description),
 			EmojiID:     emojiID,
 			EmojiName:   emojiName,
 			ChannelIDs:  channelIDs,
