@@ -133,7 +133,10 @@ func (r *stageChannelResource) body(m *stageChannelResourceModel) map[string]any
 	if v := m.Bitrate; !v.IsNull() && !v.IsUnknown() {
 		body["bitrate"] = v.ValueInt64()
 	}
-	if v := m.VideoQualityMode; !v.IsNull() && !v.IsUnknown() {
+	// Never send 0: Discord rejects it (valid: 1 auto, 2 full) and a channel that
+	// never set this unmarshals the absent field to 0, which would 400 any update
+	// (e.g. a rename) of an imported channel.
+	if v := m.VideoQualityMode; !v.IsNull() && !v.IsUnknown() && v.ValueInt64() != 0 {
 		body["video_quality_mode"] = v.ValueInt64()
 	}
 	if v := m.UserLimit; !v.IsNull() && !v.IsUnknown() {
