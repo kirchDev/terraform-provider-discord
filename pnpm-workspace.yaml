@@ -1,0 +1,36 @@
+# pnpm settings. Moved here from .npmrc: pnpm 10+ reads only auth/registry
+# settings from .npmrc — every other setting must live in this file.
+
+# Automatically install missing peer dependencies when possible.
+autoInstallPeers: true
+
+# Require packages to be at least 4320 minutes (3 days) old before install.
+minimumReleaseAge: 4320
+
+# Prevent dependency downgrades according to the configured trust policy
+# (restored after the .npmrc -> pnpm-workspace.yaml migration dropped it).
+trustPolicy: no-downgrade
+
+# Allow tinyexec@1.2.2: a provenance/trust downgrade only (no known
+# vulnerability — Snyk-clean), pulled in transitively by commitlint,
+# lint-staged and taze. Re-check when bumping these tools past it.
+trustPolicyExclude:
+  - tinyexec@1.2.2
+
+# Enforce package manager checks for project consistency.
+packageManagerStrict: true
+
+# Do not require an exact package manager version match.
+packageManagerStrictVersion: false
+
+# Prefer using the lockfile as-is for deterministic installs.
+preferFrozenLockfile: true
+
+# Verify package integrity in the store before linking.
+verifyStoreIntegrity: true
+
+# Do not fail installs on peer dependency conflicts.
+strictPeerDependencies: false
+
+# Use pnpm's isolated node_modules linker layout.
+nodeLinker: isolated

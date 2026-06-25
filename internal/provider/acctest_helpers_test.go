@@ -44,6 +44,7 @@ type mockDiscord struct {
 	guilds   map[string]map[string]any // guild id -> attrs
 	members  map[string]map[string]any // "guildID/userID" -> attrs
 	automod  map[string]map[string]any // rule id -> attrs
+	onboard  map[string]map[string]any // guild id -> onboarding object
 }
 
 func newMockDiscord(t *testing.T) *mockDiscord {
@@ -54,6 +55,7 @@ func newMockDiscord(t *testing.T) *mockDiscord {
 		guilds:   map[string]map[string]any{},
 		members:  map[string]map[string]any{},
 		automod:  map[string]map[string]any{},
+		onboard:  map[string]map[string]any{},
 	}
 	srv := httptest.NewServer(m)
 	t.Cleanup(srv.Close)
@@ -103,6 +105,8 @@ func (m *mockDiscord) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.serveAutomodCollection(w, r, segs[1])
 	case len(segs) == 5 && segs[0] == "guilds" && segs[2] == "auto-moderation" && segs[3] == "rules":
 		m.serveAutomodItem(w, r, segs[1], segs[4])
+	case len(segs) == 3 && segs[0] == "guilds" && segs[2] == "onboarding":
+		m.serveOnboarding(w, r, segs[1])
 	case len(segs) == 4 && segs[0] == "channels" && segs[2] == "permissions":
 		m.serveChannelPermission(w, r, segs[1], segs[3])
 	case len(segs) == 2 && segs[0] == "channels":
@@ -228,6 +232,60 @@ func (m *mockDiscord) serveAutomodItem(w http.ResponseWriter, r *http.Request, _
 	default:
 		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
 	}
+}
+
+// serveOnboarding reads/replaces a guild's onboarding singleton. PUT replaces the
+// whole object; the mock mirrors Discord by assigning ids to new prompts/options
+// and folding the flat emoji_id/emoji_name write fields into an `emoji` object.
+func (m *mockDiscord) serveOnboarding(w http.ResponseWriter, r *http.Request, guildID string) {
+	switch r.Method {
+	case http.MethodGet:
+		a, ok := m.onboard[guildID]
+		if !ok {
+			a = map[string]any{"enabled": false, "mode": float64(0), "default_channel_ids": []any{}, "prompts": []any{}}
+			m.onboard[guildID] = a
+		}
+		writeJSON(w, http.StatusOK, a)
+	case http.MethodPut:
+		body := decodeObject(r)
+		body["guild_id"] = guildID
+		prompts, _ := body["prompts"].([]any)
+		for _, pr := range prompts {
+			p, ok := pr.(map[string]any)
+			if !ok {
+				continue
+			}
+			p["id"] = m.onboardingID(p["id"])
+			opts, _ := p["options"].([]any)
+			for _, or := range opts {
+				o, ok := or.(map[string]any)
+				if !ok {
+					continue
+				}
+				o["id"] = m.onboardingID(o["id"])
+				eid, hasEID := o["emoji_id"]
+				ename, hasEName := o["emoji_name"]
+				if hasEID || hasEName {
+					o["emoji"] = map[string]any{"id": eid, "name": ename}
+					delete(o, "emoji_id")
+					delete(o, "emoji_name")
+				}
+			}
+		}
+		m.onboard[guildID] = body
+		writeJSON(w, http.StatusOK, body)
+	default:
+		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// onboardingID keeps a real snowflake (>= 15 digits) and assigns a fresh one for a
+// missing or placeholder id, emulating Discord assigning ids to new prompts/options.
+func (m *mockDiscord) onboardingID(v any) string {
+	if s, ok := v.(string); ok && len(s) >= 15 {
+		return s
+	}
+	return m.id()
 }
 
 // serveChannelPermission stores/removes a permission overwrite on a channel, so a
