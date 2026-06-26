@@ -158,6 +158,7 @@ func (p *DiscordProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewGuildBanResource,
 		NewWelcomeScreenResource,
 		NewServerOnboardingResource,
+		NewMemberVerificationResource,
 		NewGuildWidgetResource,
 		NewApplicationCommandResource,
 	}

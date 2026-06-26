@@ -75,7 +75,7 @@ Scope is **guild infrastructure, not message content** (no `discord_message`). S
 <details>
 <summary>Full coverage</summary>
 
-- **Guild** — `discord_managed_server` (manage an existing guild, import-first), `discord_role`, `discord_role_everyone`, `discord_emoji`, `discord_guild_ban`, `discord_guild_widget`, `discord_welcome_screen`, `discord_server_onboarding`, `discord_scheduled_event`, `discord_auto_moderation_rule`.
+- **Guild** — `discord_managed_server` (manage an existing guild, import-first), `discord_role`, `discord_role_everyone`, `discord_emoji`, `discord_guild_ban`, `discord_guild_widget`, `discord_welcome_screen`, `discord_server_onboarding`, `discord_member_verification`, `discord_scheduled_event`, `discord_auto_moderation_rule`.
 - **Channels** — `discord_category_channel`, `discord_text_channel`, `discord_voice_channel`, `discord_news_channel`, `discord_stage_channel`, `discord_forum_channel` (with tags), `discord_media_channel`, `discord_thread`, `discord_channel_permission`, `discord_webhook`, `discord_invite`.
 - **Members** — `discord_member_roles` (authoritative), `discord_member_nickname`.
 - **Application** — `discord_application_command` (global or guild).

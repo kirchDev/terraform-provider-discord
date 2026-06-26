@@ -69,10 +69,13 @@ Required:
 
 Optional:
 
-- `id` (String) Snowflake ID of the prompt. Supply it to preserve an existing prompt across updates; computed when Discord assigns a new one.
 - `in_onboarding` (Boolean) Whether the prompt appears in the onboarding flow (vs. only in Channels & Roles).
 - `required` (Boolean) Whether the prompt must be answered to finish onboarding.
 - `single_select` (Boolean) Whether only a single option may be selected.
+
+Read-Only:
+
+- `id` (String) Snowflake ID of the prompt, assigned by Discord.
 
 <a id="nestedatt--prompts--options"></a>
 ### Nested Schema for `prompts.options`
@@ -87,5 +90,8 @@ Optional:
 - `description` (String) Option description.
 - `emoji_id` (String) Snowflake ID of a custom emoji shown next to the option.
 - `emoji_name` (String) Unicode emoji (or the name of a custom emoji) shown next to the option.
-- `id` (String) Snowflake ID of the option. Supply it to preserve an existing option across updates; computed when Discord assigns a new one.
 - `role_ids` (Set of String) Role ids granted when selecting this option.
+
+Read-Only:
+
+- `id` (String) Snowflake ID of the option, assigned by Discord.
