@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.4.0...v0.5.0) (2026-06-26)
+
+
+### Features
+
+* add discord_message resource ([de68540](https://github.com/kirchDev/terraform-provider-discord/commit/de68540be4245acf8cc73f4c6443ac2ce2623719))
+
 ## [0.4.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.3.2...v0.4.0) (2026-06-26)
 
 
