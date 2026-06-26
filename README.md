@@ -70,13 +70,14 @@ The bot must be a member of every guild you manage, with the permissions for wha
 
 ## 🗺️ Coverage
 
-Scope is **guild infrastructure, not message content** (no `discord_message`). Snowflake ids and permission bitfields are modelled as strings to preserve 64-bit precision.
+Scope is **guild infrastructure** plus **fixed, declarative message content** (pinned-style forum posts and embed messages — `discord_forum_post`, `discord_message` — not a chat stream). Snowflake ids and permission bitfields are modelled as strings to preserve 64-bit precision.
 
 <details>
 <summary>Full coverage</summary>
 
-- **Guild** — `discord_managed_server` (manage an existing guild, import-first), `discord_role`, `discord_role_everyone`, `discord_emoji`, `discord_guild_ban`, `discord_guild_widget`, `discord_welcome_screen`, `discord_server_onboarding`, `discord_member_verification`, `discord_scheduled_event`, `discord_auto_moderation_rule`.
-- **Channels** — `discord_category_channel`, `discord_text_channel`, `discord_voice_channel`, `discord_news_channel`, `discord_stage_channel`, `discord_forum_channel` (with tags), `discord_media_channel`, `discord_thread`, `discord_channel_permission`, `discord_webhook`, `discord_invite`.
+- **Guild** — `discord_managed_server` (manage an existing guild, import-first), `discord_role`, `discord_role_everyone`, `discord_role_order`, `discord_emoji`, `discord_guild_ban`, `discord_guild_widget`, `discord_welcome_screen`, `discord_server_onboarding`, `discord_member_verification`, `discord_scheduled_event`, `discord_auto_moderation_rule`.
+- **Channels** — `discord_category_channel`, `discord_text_channel`, `discord_voice_channel`, `discord_news_channel`, `discord_stage_channel`, `discord_forum_channel` (with tags), `discord_media_channel`, `discord_thread`, `discord_channel_order`, `discord_channel_permission`, `discord_webhook`, `discord_invite`.
+- **Content** — `discord_forum_post` (pinned forum threads), `discord_message` (standalone messages with rich embeds).
 - **Members** — `discord_member_roles` (authoritative), `discord_member_nickname`.
 - **Application** — `discord_application_command` (global or guild).
 - **Data sources** — `discord_permission`, `discord_color`, `discord_local_image`, `discord_server`, `discord_role`, `discord_member`, `discord_user`, `discord_channel`, `discord_invite`.
