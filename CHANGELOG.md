@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.3.2...v0.4.0) (2026-06-26)
+
+
+### Features
+
+* add discord_member_verification resource ([5accd40](https://github.com/kirchDev/terraform-provider-discord/commit/5accd403c926665863e0868557c91636abad30b3))
+
 ## [0.3.2](https://github.com/kirchDev/terraform-provider-discord/compare/v0.3.1...v0.3.2) (2026-06-25)
 
 
