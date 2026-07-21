@@ -1,6 +1,9 @@
 version: 2
 updates:
   - package-ecosystem: 'npm'
+    commit-message:
+      prefix: 'fix(deps)'
+      prefix-development: 'chore(deps-dev)'
     directory: '/'
     # Open PRs against the dev branch (the integration branch), not main.
     target-branch: 'dev'
@@ -23,6 +26,8 @@ updates:
           - 'patch'
 
   - package-ecosystem: 'gomod'
+    commit-message:
+      prefix: 'fix(deps)'
     directory: '/'
     target-branch: 'dev'
     schedule:
@@ -41,6 +46,8 @@ updates:
           - 'patch'
 
   - package-ecosystem: 'github-actions'
+    commit-message:
+      prefix: 'chore(deps)'
     directory: '/'
     target-branch: 'dev'
     schedule:
