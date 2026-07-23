@@ -18,6 +18,7 @@ Title should follow Conventional Commits (e.g. "feat: add release-please workflo
 ## Checklist
 
 - [ ] `make build && make vet` passes (Go)
+- [ ] Tests added or updated — or not applicable
 - [ ] `pnpm check` passes locally
 - [ ] Docs updated (`make docs` / README / CONTRIBUTING)
 - [ ] Commit messages follow Conventional Commits
