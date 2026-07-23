@@ -10,7 +10,7 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 - **Bugs**: open a [Bug report](https://github.com/kirchDev/terraform-provider-discord/issues/new?template=bug_report.yml) with a minimal reproduction if at all possible.
 - **Feature requests**: open a [Feature request](https://github.com/kirchDev/terraform-provider-discord/issues/new?template=feature_request.yml).
-- **Questions**: open a [Question](https://github.com/kirchDev/terraform-provider-discord/issues/new?template=question.yml).
+- **Questions & ideas, or something that might be a bug**: start in the [Discord forum](https://discord.kirch.dev/) — that's where the low-friction, unconfirmed stuff lives.
 - **Security vulnerabilities**: **do not** open a public issue. Follow [SECURITY.md](SECURITY.md).
 
 ## Development setup
