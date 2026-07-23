@@ -1,0 +1,249 @@
+# Codex execution policy — the counterpart to .claude/settings.json.
+#
+# Same principle: block what wrecks the machine, tears down remote state, or
+# destroys work with no recovery path. Ordinary local development is left to
+# prompt rather than blocked — rm -rf node_modules, docker volume rm,
+# compose down -v, artisan tinker and deleting a remote branch stay usable.
+#
+# Verify after editing:
+#   codex execpolicy check --pretty --rules .codex/rules/default.rules -- <command>
+
+# ─────────────────────────── git: work and history ───────────────────────────
+
+prefix_rule(
+    pattern = ["git", "push", ["--force", "-f", "--force-with-lease"]],
+    decision = "forbidden",
+    justification = "Force-push overwrites history other clones already have",
+    match = ["git push --force", "git push -f origin dev"],
+    not_match = ["git push", "git push origin dev"],
+)
+
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "forbidden",
+    justification = "Discards uncommitted work with no recovery path",
+    match = ["git reset --hard", "git reset --hard HEAD~1"],
+    not_match = ["git reset", "git reset --soft HEAD~1"],
+)
+
+prefix_rule(
+    pattern = ["git", "clean", ["-f", "-fd", "-fdx", "-ffd"]],
+    decision = "forbidden",
+    justification = "Deletes untracked files irrecoverably",
+    match = ["git clean -f", "git clean -fdx"],
+    not_match = ["git clean -n", "git clean --dry-run"],
+)
+
+prefix_rule(
+    pattern = ["git", "checkout", "--"],
+    decision = "forbidden",
+    justification = "Throws away file changes irrecoverably",
+    match = ["git checkout -- src/main.ts"],
+    not_match = ["git checkout main", "git checkout -b feat/x"],
+)
+
+prefix_rule(
+    pattern = ["git", "branch", "-D"],
+    decision = "forbidden",
+    justification = "Deletes an unmerged branch; -d is the safe form",
+    match = ["git branch -D feat/x"],
+    not_match = ["git branch -d feat/x", "git branch"],
+)
+
+prefix_rule(
+    pattern = ["git", ["filter-branch", "filter-repo"]],
+    decision = "forbidden",
+    justification = "Rewrites the entire history",
+    match = ["git filter-branch --tree-filter true HEAD"],
+)
+
+prefix_rule(
+    pattern = ["git", "reflog", "expire"],
+    decision = "forbidden",
+    justification = "Destroys the rescue path that survives a hard reset",
+    match = ["git reflog expire --expire=now --all"],
+    not_match = ["git reflog"],
+)
+
+prefix_rule(
+    pattern = ["git", "gc", "--prune=now"],
+    decision = "forbidden",
+    justification = "Drops unreferenced objects, completing what reflog expire starts",
+    match = ["git gc --prune=now"],
+    not_match = ["git gc"],
+)
+
+prefix_rule(
+    pattern = ["git", "stash", ["drop", "clear"]],
+    decision = "forbidden",
+    justification = "Stashed work is gone without a reflog entry",
+    match = ["git stash drop", "git stash clear"],
+    not_match = ["git stash", "git stash list", "git stash pop"],
+)
+
+prefix_rule(
+    pattern = ["git", "update-ref", "-d"],
+    decision = "forbidden",
+    justification = "Deletes a ref directly, bypassing the usual safeguards",
+    match = ["git update-ref -d refs/heads/dev"],
+)
+
+prefix_rule(
+    pattern = ["git", "worktree", "remove", "--force"],
+    decision = "forbidden",
+    justification = "Removes a worktree including uncommitted changes",
+    match = ["git worktree remove --force ../wt"],
+    not_match = ["git worktree list", "git worktree remove ../wt"],
+)
+
+# ──────────────────────────── github: remote state ───────────────────────────
+
+prefix_rule(
+    pattern = ["gh", ["repo", "release", "secret"], "delete"],
+    decision = "forbidden",
+    justification = "Deletes remote resources; a repo takes issues and PRs with it",
+    match = ["gh repo delete TitusKirch/scaffold", "gh release delete v1.0.0"],
+    not_match = ["gh repo view", "gh release list"],
+)
+
+# ──────────────────────────── os and storage ─────────────────────────────────
+
+prefix_rule(
+    pattern = ["rm", ["-rf", "-fr", "-Rf", "-fR"], "/"],
+    decision = "forbidden",
+    justification = "Recursive delete from the filesystem root",
+    match = ["rm -rf /", "rm -rf /etc"],
+    not_match = ["rm -rf node_modules", "rm -rf dist"],
+)
+
+prefix_rule(
+    pattern = ["sudo", "rm"],
+    decision = "forbidden",
+    justification = "Elevated deletion outside the workspace",
+    match = ["sudo rm -rf /var/lib"],
+)
+
+prefix_rule(
+    pattern = [["chmod", "chown"], "-R"],
+    decision = "forbidden",
+    justification = "Recursive ownership or permission changes can break the system",
+    match = ["chmod -R 777 /", "chown -R root:root /usr"],
+    not_match = ["chmod +x script.sh"],
+)
+
+prefix_rule(
+    pattern = [["dd", "mkfs", "shred", "fdisk", "parted"]],
+    decision = "forbidden",
+    justification = "Writes to block devices; never needed from a repo",
+    match = ["dd if=/dev/zero of=/dev/sda", "mkfs.ext4 /dev/sdb1"],
+)
+
+# ──────────────────────────── databases ──────────────────────────────────────
+
+prefix_rule(
+    pattern = ["php", "artisan", ["migrate:fresh", "migrate:reset", "db:wipe"]],
+    decision = "forbidden",
+    justification = "Rebuilds or empties the database",
+    match = ["php artisan migrate:fresh --seed", "php artisan db:wipe"],
+    not_match = ["php artisan migrate", "php artisan tinker"],
+)
+
+prefix_rule(
+    pattern = [["prisma", "npx", "pnpm", "bunx"], "prisma", "migrate", "reset"],
+    decision = "forbidden",
+    justification = "Drops and recreates the database",
+    match = ["npx prisma migrate reset", "bunx prisma migrate reset"],
+    not_match = ["npx prisma migrate dev", "npx prisma generate"],
+)
+
+prefix_rule(
+    pattern = [["pnpm", "npm", "yarn", "bun"], ["db:fresh", "db:reset"]],
+    decision = "forbidden",
+    justification = "Project wrapper around a destructive database task",
+    match = ["pnpm db:fresh", "npm db:reset"],
+    not_match = ["pnpm db:migrate", "pnpm db:seed"],
+)
+
+prefix_rule(
+    pattern = ["redis-cli", ["flushall", "flushdb", "FLUSHALL", "FLUSHDB"]],
+    decision = "forbidden",
+    justification = "Empties the whole Redis instance",
+    match = ["redis-cli flushall"],
+    not_match = ["redis-cli ping"],
+)
+
+# ──────────────────── terraform / opentofu: remote state ─────────────────────
+
+prefix_rule(
+    pattern = [["terraform", "tofu"], ["destroy", "force-unlock"]],
+    decision = "forbidden",
+    justification = "Tears down infrastructure or breaks the state lock",
+    match = ["terraform destroy", "tofu force-unlock 1234"],
+    not_match = ["terraform plan", "tofu init"],
+)
+
+prefix_rule(
+    pattern = [["terraform", "tofu"], "apply", "-auto-approve"],
+    decision = "forbidden",
+    justification = "Applies infrastructure changes without a confirmation step",
+    match = ["terraform apply -auto-approve"],
+    not_match = ["terraform apply", "terraform plan"],
+)
+
+prefix_rule(
+    pattern = [["terraform", "tofu"], "state", ["rm", "push"]],
+    decision = "forbidden",
+    justification = "Corrupts or orphans remote state",
+    match = ["terraform state rm aws_instance.web", "tofu state push new.tfstate"],
+    not_match = ["terraform state list", "terraform state show aws_instance.web"],
+)
+
+prefix_rule(
+    pattern = [["terraform", "tofu"], "workspace", "delete"],
+    decision = "forbidden",
+    justification = "Removes a workspace and its state",
+    match = ["terraform workspace delete staging"],
+    not_match = ["terraform workspace list", "terraform workspace select prod"],
+)
+
+# ──────────────────────────── aws: remote resources ──────────────────────────
+
+prefix_rule(
+    pattern = ["aws", "s3", ["rb", "rm"]],
+    decision = "forbidden",
+    justification = "Deletes buckets or objects",
+    match = ["aws s3 rb s3://bucket --force", "aws s3 rm s3://bucket --recursive"],
+    not_match = ["aws s3 ls", "aws s3 cp file s3://bucket/"],
+)
+
+prefix_rule(
+    pattern = ["aws", "ec2", ["terminate-instances", "delete-volume", "delete-snapshot"]],
+    decision = "forbidden",
+    justification = "Destroys compute or storage",
+    match = ["aws ec2 terminate-instances --instance-ids i-123"],
+    not_match = ["aws ec2 describe-instances"],
+)
+
+prefix_rule(
+    pattern = ["aws", "rds", ["delete-db-instance", "delete-db-cluster"]],
+    decision = "forbidden",
+    justification = "Deletes a database instance",
+    match = ["aws rds delete-db-instance --db-instance-identifier prod"],
+    not_match = ["aws rds describe-db-instances"],
+)
+
+prefix_rule(
+    pattern = ["aws", "cloudformation", "delete-stack"],
+    decision = "forbidden",
+    justification = "Tears down every resource in the stack",
+    match = ["aws cloudformation delete-stack --stack-name prod"],
+    not_match = ["aws cloudformation describe-stacks"],
+)
+
+prefix_rule(
+    pattern = ["aws", "iam", ["delete-user", "delete-role", "delete-policy", "delete-group"]],
+    decision = "forbidden",
+    justification = "Removes identities other systems depend on",
+    match = ["aws iam delete-role --role-name deploy"],
+    not_match = ["aws iam list-roles", "aws iam get-role --role-name deploy"],
+)
