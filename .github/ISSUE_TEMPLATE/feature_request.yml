@@ -1,6 +1,6 @@
 name: ✨ Feature request
 description: Suggest an idea or improvement for the template
-labels: ['enhancement', 'triage']
+labels: ['feature', 'needs triage']
 body:
   - type: textarea
     id: problem
