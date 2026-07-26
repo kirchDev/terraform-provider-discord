@@ -37,13 +37,13 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.0.1",
-    "@commitlint/config-conventional": "^21.0.1",
+    "@commitlint/cli": "^21.1.0",
+    "@commitlint/config-conventional": "^21.1.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.5",
-    "oxfmt": "0.51.0",
-    "oxlint": "1.66.0",
-    "taze": "^19.13.0"
+    "lint-staged": "^17.0.8",
+    "oxfmt": "0.56.0",
+    "oxlint": "1.71.0",
+    "taze": "^19.14.1"
   },
   "engines": {
     "node": ">=24"
