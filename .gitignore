@@ -27,3 +27,4 @@ terraform.rc
 # AI scratch notes (scoping/handoff, not shipped)
 temp_ai.md
 session.md
+.claude/settings.local.json
