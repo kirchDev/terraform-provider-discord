@@ -64,3 +64,51 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+
+  # ---------------------------------------------------------------------------
+  # Security updates.
+  #
+  # Every block above sets `target-branch`, and that switches OFF `labels` and
+  # `commit-message` for security updates — they always target the DEFAULT
+  # branch and fall back to Dependabot's own defaults (bare `go`/`javascript`
+  # labels, wrong commit prefix). The blocks below re-declare each ecosystem
+  # WITHOUT `target-branch`, so they own the default branch and their labels do
+  # apply. `open-pull-requests-limit: 0` disables VERSION updates here (those
+  # stay with the blocks above); security updates are exempt from that limit.
+  #
+  # Do not add `target-branch` below — that would re-break the labels.
+  # ---------------------------------------------------------------------------
+
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: 'fix(deps)'
+      prefix-development: 'chore(deps-dev)'
+    labels:
+      - 'dependencies'
+      - 'stack: javascript'
+
+  - package-ecosystem: 'gomod'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: 'fix(deps)'
+    labels:
+      - 'dependencies'
+      - 'stack: go'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: 'chore(deps)'
+    labels:
+      - 'dependencies'
+      - 'stack: github-actions'
