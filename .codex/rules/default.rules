@@ -7,6 +7,24 @@
 #
 # Verify after editing:
 #   codex execpolicy check --pretty --rules .codex/rules/default.rules -- <command>
+#
+# Verify the two files still ban the same set:
+#   pnpm check:policy
+#
+# Two differences from .claude/settings.json are deliberate, because the rule
+# languages differ rather than the intent:
+#
+#   Claude Code matches a prefix of the command *string*; a prefix_rule below
+#   matches whole argv *tokens*. So an open-ended ban such as
+#   "Bash(aws iam delete-:*)" — every delete verb, present and future — has no
+#   equivalent here, and the aws iam rule enumerates the verbs AWS ships today
+#   instead. That enumeration is a snapshot, and no rule closes the rest.
+#
+#   Neither language normalises flag order or case, so a command is banned only
+#   in the spellings written down. "rm -rf /" and "rm -fr /" are both here;
+#   "rm -r -f /" and "redis-cli FlushAll" are not, and enumerating permutations
+#   never ends. Both files list the same spellings — that parity is what
+#   pnpm check:policy proves; it is not a claim that the set is complete.
 
 # ─────────────────────────── git: work and history ───────────────────────────
 
@@ -148,12 +166,39 @@ prefix_rule(
     not_match = ["php artisan migrate", "php artisan tinker"],
 )
 
+# The bare and launcher-prefixed forms are separate rules: a pattern matches a
+# fixed number of argv tokens, so folding "prisma" into the launcher list would
+# demand four tokens and never match the three-token bare command.
 prefix_rule(
-    pattern = [["prisma", "npx", "pnpm", "bunx"], "prisma", "migrate", "reset"],
+    pattern = ["prisma", "migrate", "reset"],
+    decision = "forbidden",
+    justification = "Drops and recreates the database",
+    match = ["prisma migrate reset", "prisma migrate reset --force"],
+    not_match = ["prisma migrate dev", "prisma generate"],
+)
+
+prefix_rule(
+    pattern = [["npx", "pnpm", "bunx"], "prisma", "migrate", "reset"],
     decision = "forbidden",
     justification = "Drops and recreates the database",
     match = ["npx prisma migrate reset", "bunx prisma migrate reset"],
     not_match = ["npx prisma migrate dev", "npx prisma generate"],
+)
+
+prefix_rule(
+    pattern = ["prisma", "db", "push", "--force-reset"],
+    decision = "forbidden",
+    justification = "Resets the database before pushing the schema",
+    match = ["prisma db push --force-reset"],
+    not_match = ["prisma db push", "prisma db seed"],
+)
+
+prefix_rule(
+    pattern = [["npx", "pnpm", "bunx"], "prisma", "db", "push", "--force-reset"],
+    decision = "forbidden",
+    justification = "Resets the database before pushing the schema",
+    match = ["npx prisma db push --force-reset"],
+    not_match = ["npx prisma db push", "npx prisma db seed"],
 )
 
 prefix_rule(
@@ -240,10 +285,42 @@ prefix_rule(
     not_match = ["aws cloudformation describe-stacks"],
 )
 
+# .claude/settings.json bans "aws iam delete-" as an open string prefix, which
+# covers verbs AWS has not shipped yet. A pattern matches whole argv tokens, so
+# the closest form is this enumeration of today's delete surface — a snapshot,
+# and the deliberate structural difference named in the header.
 prefix_rule(
-    pattern = ["aws", "iam", ["delete-user", "delete-role", "delete-policy", "delete-group"]],
+    pattern = [
+        "aws",
+        "iam",
+        [
+            "delete-access-key",
+            "delete-account-alias",
+            "delete-account-password-policy",
+            "delete-group",
+            "delete-group-policy",
+            "delete-instance-profile",
+            "delete-login-profile",
+            "delete-open-id-connect-provider",
+            "delete-policy",
+            "delete-policy-version",
+            "delete-role",
+            "delete-role-permissions-boundary",
+            "delete-role-policy",
+            "delete-saml-provider",
+            "delete-server-certificate",
+            "delete-service-linked-role",
+            "delete-service-specific-credential",
+            "delete-signing-certificate",
+            "delete-ssh-public-key",
+            "delete-user",
+            "delete-user-permissions-boundary",
+            "delete-user-policy",
+            "delete-virtual-mfa-device",
+        ],
+    ],
     decision = "forbidden",
-    justification = "Removes identities other systems depend on",
-    match = ["aws iam delete-role --role-name deploy"],
+    justification = "Removes identities and credentials other systems depend on",
+    match = ["aws iam delete-role --role-name deploy", "aws iam delete-access-key --access-key-id AKIA"],
     not_match = ["aws iam list-roles", "aws iam get-role --role-name deploy"],
 )
