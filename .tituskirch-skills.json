@@ -62,7 +62,8 @@
       "needsHuman": "ai: needs human",
       "done": "ai: done",
       "blocked": "ai: blocked",
-      "repo": false
+      "repo": false,
+      "needsTriage": "needs triage"
     },
     "review": {
       "maxRounds": 3
