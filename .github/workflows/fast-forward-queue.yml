@@ -149,7 +149,7 @@ jobs:
           access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
           cloud_region: eu
           secrets: |
-            b4cfb0b8-3567-44ab-8128-b49b00de8b97 > KIRCHDEV_QUEUE_APP_PEM
+            df8b447a-ffd5-4009-9cc3-b49b014f6978 > KIRCHDEV_QUEUE_APP_PEM
 
       - name: Mint Queue App token
         id: app-token
