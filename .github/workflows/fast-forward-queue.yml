@@ -1,0 +1,189 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Fast-forward Queue
+
+# Lands a queue branch on the integration branch by FAST-FORWARD, so every
+# commit arrives individually with its message intact — release-please reads
+# those messages to build one CHANGELOG entry per change, and a squash would
+# collapse a whole drain into one. See ADR-0008 in kirchDev/infrastructure.
+#
+# MANUAL DISPATCH IS THE HUMAN GATE, and that is a fallback, not the design.
+# ADR-0008 gates the landing on a `fast-forward-queue` environment with a
+# required reviewer. No repo in this estate has one: GitHub sells required
+# reviewers only for PUBLIC repos on Free, Pro and Team, so on a private repo
+# the resource cannot be created at all (the apply of 2026-08-03 failed with
+# `422 … ensure the billing plan supports the required reviewers protection
+# rule`), and rather than gate half the estate and leave the other half open,
+# the module now creates none anywhere. So the trigger IS the approval: whoever
+# dispatches this workflow has decided the queue branch may land.
+#
+# check_suite and pull_request:ready_for_review were the automatic triggers and
+# are deliberately gone. With no environment to wait on they would land a green
+# queue branch with no human involved at all — the one thing ADR-0008 exists to
+# prevent. Getting an enforced gate back is INF-60: the App opens the queue PR
+# itself, which makes a real PR approval possible.
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Queue PR number to fast-forward the integration branch onto'
+        required: true
+        type: string
+
+# One fast-forward at a time. Two concurrent runs would race on the same ref and
+# the loser's update would stop being a fast-forward mid-flight.
+concurrency:
+  group: fast-forward-queue
+  cancel-in-progress: false
+
+env:
+  # The repo's integration branch — first entry of its branch_flow in the SSOT
+  # (tofu/data/github-{orgs,users}/*.yml). Change it here if that flow changes.
+  INTEGRATION_BRANCH: dev
+  # Only a head branch with this prefix may be fast-forwarded. A ruleset can
+  # condition on the TARGET ref only, so this check is the head-branch half of
+  # the App bypass and lives here on purpose (ADR-0008).
+  QUEUE_BRANCH_PREFIX: ai/queue-
+
+jobs:
+  # Kept as its own job even though only a dispatch reaches it now: it is what
+  # re-checks the dispatched number against every condition below, so a wrong PR
+  # number ends the run green instead of landing something.
+  pick:
+    name: Pick the queue PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      # `gh pr checks` reads the statusCheckRollup, which spans check runs
+      # (checks) and commit statuses (statuses). A permissions block sets every
+      # scope it doesn't name to none, so omitting either fails this job.
+      checks: read
+      statuses: read
+    outputs:
+      pr: ${{ steps.pick.outputs.pr }}
+      sha: ${{ steps.pick.outputs.sha }}
+    steps:
+      # The dispatch names exactly one PR. Anything that is not an open, ready,
+      # green queue PR into the integration branch leaves `pr` empty and the job
+      # ends green — a mistyped number must not land anything.
+      - name: Pick the queue PR
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_PR: ${{ inputs.pr }}
+        run: |
+          set -euo pipefail
+
+          for n in $INPUT_PR; do
+            pr=$(gh pr view "$n" --json number,state,isDraft,baseRefName,headRefName,headRefOid,isCrossRepository)
+            state=$(printf '%s' "$pr" | jq -r '.state')
+            draft=$(printf '%s' "$pr" | jq -r '.isDraft')
+            base=$(printf '%s' "$pr" | jq -r '.baseRefName')
+            head=$(printf '%s' "$pr" | jq -r '.headRefName')
+            sha=$(printf '%s' "$pr" | jq -r '.headRefOid')
+            fork=$(printf '%s' "$pr" | jq -r '.isCrossRepository')
+
+            # The branch NAME alone is not the head-branch half of the bypass: a
+            # fork's branch can be called ai/queue-* just as well, and this
+            # pattern is meant to hold on a public repo too. Only a branch in
+            # this repository qualifies.
+            if [ "$fork" != "false" ]; then
+              echo "PR #$n: head is in a fork — skipping."
+              continue
+            fi
+
+            case "$head" in
+            "$QUEUE_BRANCH_PREFIX"*) ;;
+            *)
+              echo "PR #$n: head '$head' is not a queue branch — skipping."
+              continue
+              ;;
+            esac
+
+            # A draft PR is OPEN — `isDraft` is a separate field, and skipping it
+            # would land a queue branch its author has explicitly marked as not
+            # ready. Draft is the drain's way of saying "not yet".
+            if [ "$state" != "OPEN" ] || [ "$draft" != "false" ] || [ "$base" != "$INTEGRATION_BRANCH" ]; then
+              echo "PR #$n: state=$state draft=$draft base=$base — not a ready PR into $INTEGRATION_BRANCH, skipping."
+              continue
+            fi
+
+            # Green means every check, not just the required ones: the queue PR
+            # is the ONLY gate the drain's commits ever pass through.
+            if ! gh pr checks "$n"; then
+              echo "PR #$n: checks are not (yet) all green — skipping."
+              continue
+            fi
+
+            echo "pr=$n" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            echo "PR #$n: green queue PR $head -> $base at $sha."
+            break
+          done
+
+  # No `environment:` — see the header. The gate is the dispatch that started
+  # this run, so this job is reachable only by someone who can dispatch it.
+  fast-forward:
+    name: Fast-forward the integration branch
+    needs: pick
+    if: needs.pick.outputs.pr != ''
+    runs-on: ubuntu-latest
+    # Everything here runs on the App token; the workflow token needs nothing.
+    permissions: {}
+    steps:
+      # The PEM is never a GitHub secret — same runtime-from-Bitwarden pattern as
+      # release-please.yml. Unlike that one this uses the purpose-built "kirchDev
+      # Queue" App, which carries `contents: write` and nothing else and is the
+      # merge-gate bypass actor on every integration branch of both owners
+      # (`queue_merge_app_id` in the owner YAML).
+      #
+      # BWS_ACCESS_TOKEN is published per owner — org-level on kirchDev, per-repo
+      # on the TitusKirch user account. With no environment in play it is
+      # `workflow_dispatch` permission, and nothing else, that keeps the App
+      # token out of reach.
+      - name: Fetch Queue App PEM from Bitwarden
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          cloud_region: eu
+          secrets: |
+            b4cfb0b8-3567-44ab-8128-b49b00de8b97 > KIRCHDEV_QUEUE_APP_PEM
+
+      - name: Mint Queue App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: '4473889'
+          private-key: ${{ env.KIRCHDEV_QUEUE_APP_PEM }}
+
+      # The App bypasses the merge gates only, so `required_signatures` from the
+      # integrity ruleset still binds every commit being fast-forwarded in: one
+      # unsigned worker commit anywhere in the queue branch fails this step with
+      # a 422, and the fix belongs on the worker's signing setup, not here.
+      #
+      # A ref PATCH without `force` is fast-forward-only: GitHub rejects it with
+      # 422 if the integration branch is not an ancestor of the queue head, which
+      # is exactly the guarantee wanted — the queue branch is rebased, never the
+      # history rewritten. GitHub closes the PR as merged once its head is
+      # reachable from the base.
+      - name: Fast-forward the integration branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ needs.pick.outputs.pr }}
+          SHA: ${{ needs.pick.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api -X PATCH "repos/$GH_REPO/git/refs/heads/$INTEGRATION_BRANCH" \
+            -f sha="$SHA" -F force=false
+          {
+            echo "## Queue branch landed"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| PR | #$PR |"
+            echo "| Branch | \`$INTEGRATION_BRANCH\` |"
+            echo "| Commit | \`$SHA\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
