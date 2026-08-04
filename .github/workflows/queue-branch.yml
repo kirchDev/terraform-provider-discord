@@ -1,0 +1,163 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Queue Branch
+
+# Cuts the queue branch a worktree drain's pull requests are grouped behind, and
+# retargets each worker PR at it. This is the step the drain deliberately cannot
+# take: `work.queueBranch` only makes a worker AIM at an open `ai/queue-*`, and
+# the loop holds no write to that branch on purpose, so cutting it belongs to
+# the repo. Without this workflow the key is inert — every worker PR falls back
+# to the integration branch, which is exactly the mode-off path. See ADR-0012 in kirchDev/infrastructure.
+#
+# `fast-forward-queue.yml` owns the rest: its `open` job turns the pushed branch
+# into a PR, and `pick` + `fast-forward` land that PR once it is green and
+# approved. Nothing here opens a PR and nothing here lands one.
+on:
+  pull_request:
+    # THE BASE IS FILTERED AT THE TRIGGER, not in a job-level `if`: that `if`
+    # cannot read `env`, so the integration branch would have to be repeated as
+    # a literal there. Keep this list and INTEGRATION_BRANCH in step.
+    branches:
+      - dev
+    # `opened` only. A retarget is what this workflow DOES, so reacting to
+    # `edited` would have it answer its own edit; and a push to an already
+    # grouped PR needs nothing from here.
+    types: [opened]
+
+# Shared with fast-forward-queue.yml, not merely with other runs of this file.
+# Cutting a branch and landing one must never interleave: a branch cut from an
+# integration tip that a landing is about to move would no longer contain that
+# tip, and the fast-forward window closes the moment it doesn't.
+concurrency:
+  group: fast-forward-queue
+  cancel-in-progress: false
+
+env:
+  # The repo's integration branch — first entry of its branch_flow in the SSOT
+  # (tofu/data/github-{orgs,users}/*.yml in kirchDev/infrastructure). Change it
+  # here AND in the trigger's
+  # `branches:` above if that flow changes.
+  INTEGRATION_BRANCH: dev
+  # The prefix fast-forward-queue.yml will accept as a head branch. Cutting
+  # anything else would produce a branch that workflow refuses to land.
+  QUEUE_BRANCH_PREFIX: ai/queue-
+
+jobs:
+  cut:
+    name: Cut the queue branch
+    # A fork's branch can be called `ai/*` just as well, and a fork PR gets no
+    # secrets — the Bitwarden step would fail rather than skip. The queue PR
+    # itself is excluded by the second prefix test: the App opens it with an
+    # `ai/queue-*` head into this same base, and without the test it would be
+    # retargeted onto itself.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.event.pull_request.head.ref, 'ai/')
+      && !startsWith(github.event.pull_request.head.ref, 'ai/queue-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Retargeting the worker PR is the one write the workflow token makes; the
+      # branch itself is created on the App token below, for the reason given
+      # there.
+      pull-requests: write
+    steps:
+      # Checked with the workflow token, so the App token is minted only when a
+      # branch actually has to be cut — every worker PR after the first finds
+      # the queue branch already open and stops before Bitwarden.
+      - name: Is a queue branch already open?
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # The OPEN PR is the marker, not the branch: a queue branch whose PR
+          # has landed is done, and its branch may well still exist.
+          open=$(gh pr list --state open --base "$INTEGRATION_BRANCH" \
+            --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith(env.QUEUE_BRANCH_PREFIX))] | .[0].headRefName // ""')
+
+          if [ -n "$open" ]; then
+            echo "Queue branch $open is already open — retargeting onto it."
+            echo "branch=$open" >> "$GITHUB_OUTPUT"
+            echo "create=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Named for the integration tip it is cut from, which is the one fact
+          # that decides whether it can still be fast-forwarded later.
+          tip=$(gh api "repos/$GH_REPO/git/ref/heads/$INTEGRATION_BRANCH" --jq '.object.sha')
+          echo "No open queue branch — cutting from $INTEGRATION_BRANCH at $tip."
+          echo "branch=$QUEUE_BRANCH_PREFIX${tip:0:7}" >> "$GITHUB_OUTPUT"
+          echo "sha=$tip" >> "$GITHUB_OUTPUT"
+          echo "create=true" >> "$GITHUB_OUTPUT"
+
+      # Same runtime-from-Bitwarden pattern as fast-forward-queue.yml; the PEM is
+      # never a GitHub secret. BWS_ACCESS_TOKEN is org-level on kirchDev and a repo
+      # secret on the TitusKirch account.
+      - name: Fetch Queue App PEM from Bitwarden
+        if: steps.existing.outputs.create == 'true'
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          cloud_region: eu
+          secrets: |
+            df8b447a-ffd5-4009-9cc3-b49b014f6978 > KIRCHDEV_QUEUE_APP_PEM
+
+      - name: Mint Queue App token
+        id: app-token
+        if: steps.existing.outputs.create == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: '4473889'
+          private-key: ${{ env.KIRCHDEV_QUEUE_APP_PEM }}
+
+      # THE APP TOKEN IS WHAT MAKES THE NEXT WORKFLOW FIRE, and that is the whole
+      # reason it is minted here rather than pushing the ref with the workflow
+      # token. A ref created with GITHUB_TOKEN raises no `push` event, so
+      # fast-forward-queue.yml's `open` job would never run and the branch would
+      # sit there with no PR — the exact dead end this workflow exists to close.
+      #
+      # Nothing is checked out in this job, so no branch content ever executes
+      # alongside the token (the same rule the `open` job is written under).
+      - name: Cut the queue branch
+        if: steps.existing.outputs.create == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.existing.outputs.branch }}
+          SHA: ${{ steps.existing.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GH_REPO/git/refs" \
+            -f ref="refs/heads/$BRANCH" -f sha="$SHA"
+          echo "Cut $BRANCH at $SHA."
+
+      # Done on the workflow token deliberately: a base change is not a push, so
+      # nothing downstream needs to be woken by it, and the App token stays out
+      # of every step that doesn't need it.
+      #
+      # This is also where the CI saving lands. where `ci.yml` is
+      # scoped to the integration branches: once the base is `ai/queue-*`
+      # further pushes to the worker PR run nothing — CI runs once, on the queue
+      # PR, instead of once per issue.
+      - name: Retarget the worker PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ steps.existing.outputs.branch }}
+        run: |
+          set -euo pipefail
+          gh pr edit "$PR" --base "$BRANCH"
+          {
+            echo "## Worker PR grouped"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| PR | #$PR |"
+            echo "| Base | \`$BRANCH\` |"
+            echo "| Cut this run | \`${{ steps.existing.outputs.create }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
