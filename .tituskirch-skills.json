@@ -80,6 +80,13 @@
       "work": {
         "concurrency": 8,
         "branch": "worktree",
+        "parallel": true
+      }
+    },
+    "fleet-with-queue": {
+      "work": {
+        "concurrency": 8,
+        "branch": "worktree",
         "parallel": true,
         "queueBranch": true
       }
