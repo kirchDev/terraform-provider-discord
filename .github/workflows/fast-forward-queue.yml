@@ -135,18 +135,18 @@ jobs:
 
           # A quoted heredoc: the body is copied through verbatim, so its
           # backticks and asterisks need no shell escaping.
+          #
+          # ONE PARAGRAPH PER LINE, however long the line runs. GitHub renders
+          # comment and PR bodies with hard line breaks on, unlike a .md file in
+          # the repo, so a hand-wrapped paragraph arrives wrapped at whatever
+          # column it was written to — a narrow column of text in a wide box,
+          # re-wrapped again by the reader's own viewport.
           body=$(cat <<'EOF'
-          Queue branch for an AI drain. Every worker PR targets this branch, so CI
-          runs once here instead of once per issue.
+          Queue branch for an AI drain. Every worker PR targets this branch, so CI runs once here instead of once per issue.
 
-          **Approving this PR is what lands it.** Once every check is green and this
-          PR carries an approval on its **current head**, `fast-forward-queue.yml`
-          fast-forwards the integration branch onto it — each commit arriving
-          individually, with its message intact, so release-please still sees one
-          entry per change. Nothing lands without that approval, green CI included.
+          **Approving this PR is what lands it.** Once every check is green and this PR carries an approval on its **current head**, `fast-forward-queue.yml` fast-forwards the integration branch onto it — each commit arriving individually, with its message intact, so release-please still sees one entry per change. Nothing lands without that approval, green CI included.
 
-          A push after the approval invalidates it: the approval is checked against
-          the head commit it was given on, because nothing else dismisses it here.
+          A push after the approval invalidates it: the approval is checked against the head commit it was given on, because nothing else dismisses it here.
           EOF
           )
 
