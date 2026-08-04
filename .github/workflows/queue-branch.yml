@@ -9,6 +9,11 @@ name: Queue Branch
 # the repo. Without this workflow the key is inert — every worker PR falls back
 # to the integration branch, which is exactly the mode-off path. See ADR-0012 in kirchDev/infrastructure.
 #
+# Which PRs are grouped is the RUN's to decide, not this repo's: only a drain
+# started with `work.queueBranch: true` cuts its branches under `ai/queue/`, and
+# only those reach the job below. A repo carrying this file therefore states
+# that it CAN group, never that it always will.
+#
 # `fast-forward-queue.yml` owns the rest: its `open` job turns the pushed branch
 # into a PR, and `pick` + `fast-forward` land that PR once it is green and
 # approved. Nothing here opens a PR and nothing here lands one.
@@ -45,15 +50,22 @@ env:
 jobs:
   cut:
     name: Cut the queue branch
-    # A fork's branch can be called `ai/*` just as well, and a fork PR gets no
-    # secrets — the Bitwarden step would fail rather than skip. The queue PR
-    # itself is excluded by the second prefix test: the App opens it with an
-    # `ai/queue-*` head into this same base, and without the test it would be
-    # retargeted onto itself.
+    # THE `ai/queue/` PREFIX IS THE RUN'S OWN SIGNAL that it asked to be grouped.
+    # A drain under `work.queueBranch: false` cuts `ai/<ref>-<slug>` and is left
+    # alone here, so the profile the run was started with decides whether its
+    # PRs are grouped — not this repo merely carrying the workflow. Matching a
+    # bare `ai/` would group every worker PR, which makes the two fleet profiles
+    # indistinguishable in any repo that has this file.
+    #
+    # A fork's branch can be called `ai/queue/*` just as well, and a fork PR gets
+    # no secrets — the Bitwarden step would fail rather than skip.
+    #
+    # The queue PR itself needs no exclusion: the App opens it with an
+    # `ai/queue-<hash>` head, which does not match `ai/queue/` (hyphen, not
+    # slash), so it can never be retargeted onto itself.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository
-      && startsWith(github.event.pull_request.head.ref, 'ai/')
-      && !startsWith(github.event.pull_request.head.ref, 'ai/queue-')
+      && startsWith(github.event.pull_request.head.ref, 'ai/queue/')
     runs-on: ubuntu-latest
     permissions:
       contents: read
