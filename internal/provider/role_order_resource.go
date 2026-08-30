@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -43,10 +44,14 @@ type roleOrderResourceModel struct {
 	RoleIDs  types.List   `tfsdk:"role_ids"`
 }
 
-// rolePos is the slice of a role object this resource reads.
+// rolePos is the slice of a role object this resource reads. `managed` is read
+// because an integration-managed role (Server Booster, a Twitch subscriber tier)
+// cannot be moved by anyone — listing one makes Discord reject the whole PATCH.
 type rolePos struct {
 	ID       string `json:"id"`
+	Name     string `json:"name"`
 	Position int64  `json:"position"`
+	Managed  bool   `json:"managed"`
 }
 
 func (r *roleOrderResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -58,8 +63,13 @@ func (r *roleOrderResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		MarkdownDescription: "Declaratively orders roles in the guild hierarchy via Discord's modify-role-positions " +
 			"endpoint — the robust alternative to per-role `position`. List the roles from **highest to lowest** " +
 			"(top to bottom, as the role list reads); the resource sets their relative positions and re-applies on " +
-			"drift. Only the listed roles are touched. The bot can only reorder roles **below its own highest role**, " +
-			"and the `@everyone` role cannot be moved — do not list it. Leave per-role `position` unset and order here.",
+			"drift. Only the listed roles are touched: they are ordered **relative to one another** in the slots they " +
+			"already hold, so roles you do not list keep theirs. An **integration-managed** role (Server Booster, a " +
+			"Twitch subscriber tier) cannot be moved by anyone — listing one fails the apply, naming it. Where the " +
+			"listed roles cannot each be given a position without climbing over a role you did not list, the apply " +
+			"fails naming that role rather than writing a position Discord would reject — list the roles in between " +
+			"as well. The bot can only reorder roles **below its own highest role**, and the `@everyone` role cannot " +
+			"be moved — do not list it. Leave per-role `position` unset and order here.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the guild.",
@@ -87,20 +97,92 @@ func (r *roleOrderResource) Configure(_ context.Context, req resource.ConfigureR
 	r.client = c
 }
 
-// apply gives the first-listed role the highest position and the last the lowest
-// (just above @everyone), preserving the top-to-bottom order. Higher Discord
-// position = higher in the hierarchy, hence the descending assignment.
+// apply orders the listed roles among themselves, first-listed highest. Higher
+// Discord position = higher in the hierarchy, hence the descending assignment. It
+// only ever writes slots the listed roles already hold, so roles this resource does
+// not manage — integration-managed ones, the app-owned bot roles — stay where they
+// are and Discord has no collision to renormalise (see order_common.go).
 func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel) error {
 	var ids []string
 	if d := m.RoleIDs.ElementsAs(ctx, &ids, false); d.HasError() {
 		return fmt.Errorf("reading role_ids")
 	}
-	n := len(ids)
-	body := make([]map[string]any, n)
-	for i, id := range ids {
-		body[i] = map[string]any{"id": id, "position": n - i}
+	guildID := m.ServerID.ValueString()
+	roles, err := r.roles(ctx, guildID)
+	if err != nil {
+		return err
 	}
-	return r.client.Write(ctx, "PATCH", "/guilds/"+m.ServerID.ValueString()+"/roles", body, nil)
+	for _, id := range ids {
+		role, ok := roles[id]
+		if !ok {
+			// A role that is not there holds no slot to reuse and occupies none to
+			// route around, so it would silently become a shortfall for the
+			// position arithmetic to invent a slot for.
+			return fmt.Errorf("no role %s in this server — role_ids may only list roles that exist", id)
+		}
+		// A managed role cannot be moved whatever the bot's own place in the
+		// hierarchy; Discord answers the whole PATCH with a bare 50013.
+		if role.Managed {
+			return fmt.Errorf("role %q (%s) is managed by an integration and cannot be reordered — remove it from role_ids", role.Name, id)
+		}
+	}
+	positions := make(map[string]int64, len(roles))
+	for id, role := range roles {
+		positions[id] = role.Position
+	}
+	listed := listedSet(ids)
+	taken := occupiedPositions(positions, listed)
+	// @everyone sits at position 0 and cannot be moved, so real roles start at 1.
+	// The ceiling keeps the set from climbing over a role it does not manage: the
+	// app's own role is integration-managed, so it is never listed, and a write at
+	// or above it comes back as the bare 50013 this resource exists to replace.
+	body, err := orderPositions(ids, positions, taken, 1, crossingCeiling(ids, positions, taken), true)
+	if err != nil {
+		var room *orderRoomError
+		if errors.As(err, &room) {
+			return fmt.Errorf("cannot order the listed roles without moving %s, which is not listed: %s — "+
+				"list the roles in between as well, or free a position below it",
+				roleAt(roles, room.Ceiling), room)
+		}
+		return err
+	}
+	return r.client.Write(ctx, "PATCH", "/guilds/"+guildID+"/roles", body, nil)
+}
+
+// roleAt names the role holding a position, so an error a reader gets points at
+// something they can see in the role list. Positions can be shared, so the lowest
+// id wins rather than whichever one map iteration reached first.
+func roleAt(roles map[string]rolePos, position int64) string {
+	name, found := "", ""
+	for id, role := range roles {
+		if role.Position != position {
+			continue
+		}
+		if found == "" || id < found {
+			found, name = id, role.Name
+		}
+	}
+	if found == "" {
+		return fmt.Sprintf("the role on position %d", position)
+	}
+	return fmt.Sprintf("%q (%s)", name, found)
+}
+
+// roles reads the guild's roles keyed by id.
+func (r *roleOrderResource) roles(ctx context.Context, guildID string) (map[string]rolePos, error) {
+	raws, err := r.client.List(ctx, "/guilds/"+guildID+"/roles")
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]rolePos, len(raws))
+	for _, raw := range raws {
+		var role rolePos
+		if err := json.Unmarshal(raw, &role); err != nil {
+			return nil, err
+		}
+		out[role.ID] = role
+	}
+	return out, nil
 }
 
 func (r *roleOrderResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -169,17 +251,13 @@ func (r *roleOrderResource) ImportState(ctx context.Context, req resource.Import
 // on import (no role_ids yet) it discovers every role except @everyone.
 func (r *roleOrderResource) readInto(ctx context.Context, m *roleOrderResourceModel) error {
 	guildID := m.ServerID.ValueString()
-	raws, err := r.client.List(ctx, "/guilds/"+guildID+"/roles")
+	roles, err := r.roles(ctx, guildID)
 	if err != nil {
 		return err
 	}
-	posByID := map[string]int64{}
-	for _, raw := range raws {
-		var role rolePos
-		if err := json.Unmarshal(raw, &role); err != nil {
-			return err
-		}
-		posByID[role.ID] = role.Position
+	posByID := make(map[string]int64, len(roles))
+	for id, role := range roles {
+		posByID[id] = role.Position
 	}
 
 	var stateIDs []string
