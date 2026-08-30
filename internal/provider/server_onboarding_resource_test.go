@@ -233,3 +233,150 @@ resource "discord_server_onboarding" "test" {
 		},
 	})
 }
+
+// TestAccServerOnboardingResourceImportThenRekey covers the route onto the keyed
+// schema. Discord stores no keys, so an import can only fall back to the
+// snowflake — and the apply that replaces those snowflakes with the readable keys
+// the docs encourage is then guaranteed to happen. It must keep the ids, or the
+// migration is itself the silent re-mint issue #35 exists to prevent.
+func TestAccServerOnboardingResourceImportThenRekey(t *testing.T) {
+	m := newMockDiscord(t)
+	const rn = "discord_server_onboarding.test"
+
+	// An onboarding that already exists in Discord, as every consumer's does.
+	const promptID, newsID, chatID = "111111111111111111", "222222222222222222", "333333333333333333"
+	m.onboard["999"] = map[string]any{
+		"enabled": true, "mode": float64(0), "default_channel_ids": []any{},
+		"prompts": []any{map[string]any{
+			"id": promptID, "type": float64(0), "title": "Pick your interests",
+			"single_select": false, "required": true, "in_onboarding": true,
+			"options": []any{
+				map[string]any{"id": newsID, "title": "News", "channel_ids": []any{}, "role_ids": []any{}},
+				map[string]any{"id": chatID, "title": "Chat", "channel_ids": []any{}, "role_ids": []any{}},
+			},
+		}},
+	}
+
+	const cfg = `
+resource "discord_server_onboarding" "test" {
+  server_id = "999"
+  enabled   = true
+  mode      = 0
+
+  prompts = [
+    {
+      key           = "interests"
+      type          = 0
+      title         = "Pick your interests"
+      single_select = false
+      required      = true
+      in_onboarding = true
+
+      options = [
+        { key = "news", title = "News" },
+        { key = "chat", title = "Chat" },
+      ]
+    },
+  ]
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			// Import and keep what it produced: every key in state is the
+			// snowflake, exactly as a real `tofu import` leaves it.
+			{
+				Config:                               cfg,
+				ResourceName:                         rn,
+				ImportState:                          true,
+				ImportStatePersist:                   true,
+				ImportStateId:                        "999",
+				ImportStateVerifyIdentifierAttribute: "server_id",
+			},
+			// The caller now states the keys it means to keep. Nothing matches them
+			// by key, so identity has to fall back to position — the prior keys are
+			// snowflakes, which name nothing the caller chose.
+			{
+				Config: cfg,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "prompts.0.key", "interests"),
+					resource.TestCheckResourceAttr(rn, "prompts.0.options.0.key", "news"),
+					resource.TestCheckResourceAttr(rn, "prompts.0.options.1.key", "chat"),
+					resource.TestCheckResourceAttr(rn, "prompts.0.id", promptID),
+					resource.TestCheckResourceAttr(rn, "prompts.0.options.0.id", newsID),
+					resource.TestCheckResourceAttr(rn, "prompts.0.options.1.id", chatID),
+				),
+			},
+		},
+	})
+}
+
+// TestAccServerOnboardingResourceRekeyRefusesAReorder is the other half of the
+// migration: position only carries identity while the list has not moved, so
+// adding the keys *and* inserting in one apply must fail rather than hand each
+// new key the id of whichever prompt happens to share its index.
+func TestAccServerOnboardingResourceRekeyRefusesAReorder(t *testing.T) {
+	m := newMockDiscord(t)
+	const rn = "discord_server_onboarding.test"
+
+	m.onboard["999"] = map[string]any{
+		"enabled": true, "mode": float64(0), "default_channel_ids": []any{},
+		"prompts": []any{map[string]any{
+			"id": "111111111111111111", "type": float64(0), "title": "Pick your interests",
+			"single_select": false, "required": true, "in_onboarding": true,
+			"options": []any{
+				map[string]any{"id": "222222222222222222", "title": "News", "channel_ids": []any{}, "role_ids": []any{}},
+			},
+		}},
+	}
+
+	const cfg = `
+resource "discord_server_onboarding" "test" {
+  server_id = "999"
+  enabled   = true
+  mode      = 0
+
+  prompts = [
+    {
+      key           = "pronouns"
+      type          = 0
+      title         = "Your pronouns"
+      single_select = false
+      required      = true
+      in_onboarding = true
+
+      options = [{ key = "they", title = "they/them" }]
+    },
+    {
+      key           = "interests"
+      type          = 0
+      title         = "Pick your interests"
+      single_select = false
+      required      = true
+      in_onboarding = true
+
+      options = [{ key = "news", title = "News" }]
+    },
+  ]
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config:                               cfg,
+				ResourceName:                         rn,
+				ImportState:                          true,
+				ImportStatePersist:                   true,
+				ImportStateId:                        "999",
+				ImportStateVerifyIdentifierAttribute: "server_id",
+			},
+			{
+				Config:      cfg,
+				ExpectError: regexp.MustCompile(`Cannot tell which prompt this is`),
+			},
+		},
+	})
+}

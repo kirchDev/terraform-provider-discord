@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -30,7 +31,12 @@ import (
 //
 // This replaces UseStateForUnknown on the two `id` attributes rather than
 // dropping it: left on, it would re-apply the same index matching to any id this
-// modifier had just marked unknown. ---
+// modifier had just marked unknown.
+//
+// Getting *onto* the scheme needs one more rule, since state that predates `key`
+// and state fresh from an import both hold no key the caller chose — see
+// `matchPrior` for the positional fallback that carries their ids across, and the
+// guard that stops it guessing once the list has moved. ---
 
 // onboardingIdentityModifier keys the planned prompts tree on `key`.
 type onboardingIdentityModifier struct{}
@@ -60,25 +66,20 @@ func (onboardingIdentityModifier) PlanModifyList(ctx context.Context, req planmo
 		resp.Diagnostics.Append(d...)
 		return
 	}
-	priorByKey := make(map[string]onboardingPromptModel, len(cfg))
-	for _, p := range onboardingModelsFromList(ctx, req.StateValue, &resp.Diagnostics) {
-		if k, ok := stableKey(p.Key); ok {
-			priorByKey[k] = p
-		}
+	priorPrompts := onboardingModelsFromList(ctx, req.StateValue, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+	matches, d := matchPrior(cfg, priorPrompts, promptFields)
+	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	planned := make([]onboardingPromptModel, 0, len(cfg))
-	for _, c := range cfg {
+	for i, c := range cfg {
 		p := c // key, type and title are Required — the config value is the answer.
-		var prior *onboardingPromptModel
-		if k, ok := stableKey(c.Key); ok {
-			if match, found := priorByKey[k]; found {
-				prior = &match
-			}
-		}
+		prior := matches[i]
 
 		var priorOptions types.List
 		if prior != nil {
@@ -126,27 +127,25 @@ func planOptions(ctx context.Context, cfgList, priorList types.List) (types.List
 		diags.Append(d...)
 		return types.ListNull(optType), diags
 	}
-	priorByKey := make(map[string]onboardingOptionModel, len(cfg))
-	for _, o := range onboardingOptionModelsFromList(ctx, priorList, &diags) {
-		if k, ok := stableKey(o.Key); ok {
-			priorByKey[k] = o
-		}
+	priorOptions := onboardingOptionModelsFromList(ctx, priorList, &diags)
+	if diags.HasError() {
+		return types.ListNull(optType), diags
 	}
+	matches, d := matchPrior(cfg, priorOptions, optionFields)
+	diags.Append(d...)
 	if diags.HasError() {
 		return types.ListNull(optType), diags
 	}
 
 	planned := make([]onboardingOptionModel, 0, len(cfg))
-	for _, c := range cfg {
+	for i, c := range cfg {
 		o := c // key, title and the optional display fields come from config.
-		if k, ok := stableKey(c.Key); ok {
-			if prior, found := priorByKey[k]; found {
-				o.ID = resolveID(prior.ID)
-				o.ChannelIDs = resolveSet(c.ChannelIDs, prior.ChannelIDs)
-				o.RoleIDs = resolveSet(c.RoleIDs, prior.RoleIDs)
-				planned = append(planned, o)
-				continue
-			}
+		if prior := matches[i]; prior != nil {
+			o.ID = resolveID(prior.ID)
+			o.ChannelIDs = resolveSet(c.ChannelIDs, prior.ChannelIDs)
+			o.RoleIDs = resolveSet(c.RoleIDs, prior.RoleIDs)
+			planned = append(planned, o)
+			continue
 		}
 		o.ID = types.StringUnknown()
 		o.ChannelIDs = resolveSet(c.ChannelIDs, types.SetUnknown(types.StringType))
@@ -157,6 +156,117 @@ func planOptions(ctx context.Context, cfgList, priorList types.List) (types.List
 	list, d := types.ListValueFrom(ctx, optType, planned)
 	diags.Append(d...)
 	return list, diags
+}
+
+// identityFields reads the three attributes matching needs off an element, so
+// prompts and options share one matcher.
+type identityFields[T any] struct {
+	noun           string
+	key, id, title func(T) types.String
+}
+
+var promptFields = identityFields[onboardingPromptModel]{
+	noun:  "prompt",
+	key:   func(p onboardingPromptModel) types.String { return p.Key },
+	id:    func(p onboardingPromptModel) types.String { return p.ID },
+	title: func(p onboardingPromptModel) types.String { return p.Title },
+}
+
+var optionFields = identityFields[onboardingOptionModel]{
+	noun:  "option",
+	key:   func(o onboardingOptionModel) types.String { return o.Key },
+	id:    func(o onboardingOptionModel) types.String { return o.ID },
+	title: func(o onboardingOptionModel) types.String { return o.Title },
+}
+
+// matchPrior pairs each configured element with the prior element whose identity
+// it continues, returning nil where there is none. Two passes, because a key
+// match at any config index outranks a positional one anywhere:
+//
+//  1. **By key** — the whole point of the scheme. An element the caller named
+//     keeps its id wherever it now sits in the list.
+//  2. **By position, and only onto an unkeyed prior element** — the way *onto*
+//     the scheme. State written before `key` existed carries a null one, and an
+//     import can only fall back to the snowflake; in both the caller's first
+//     apply introduces keys that by definition match nothing, and without this
+//     pass every id would be re-minted on exactly the apply every existing
+//     consumer has to run. Once real keys are in state no prior element is
+//     adoptable, so the index bug this whole file exists to fix is not
+//     reintroduced — the fallback is reachable only from those two states.
+//
+// Position is only worth trusting while the list has not moved, so the second
+// pass corroborates it with `title` and **refuses the plan** where the element at
+// that index is plainly a different one. Adding the keys and reordering in one
+// apply would otherwise hand each new key the wrong id — the same silent
+// corruption, reached through the migration instead of an insert.
+func matchPrior[T any](cfg, prior []T, f identityFields[T]) ([]*T, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	out := make([]*T, len(cfg))
+	claimed := make([]bool, len(prior))
+
+	byKey := make(map[string]int, len(prior))
+	for i := range prior {
+		if k, ok := stableKey(f.key(prior[i])); ok {
+			if _, dup := byKey[k]; !dup {
+				byKey[k] = i
+			}
+		}
+	}
+	for i := range cfg {
+		if k, ok := stableKey(f.key(cfg[i])); ok {
+			if j, found := byKey[k]; found && !claimed[j] {
+				claimed[j] = true
+				out[i] = &prior[j]
+			}
+		}
+	}
+	for i := range cfg {
+		if out[i] != nil || i >= len(prior) || claimed[i] {
+			continue
+		}
+		if !adoptableByPosition(f.key(prior[i]), f.id(prior[i])) {
+			continue
+		}
+		if was, now := f.title(prior[i]).ValueString(), f.title(cfg[i]).ValueString(); was != now {
+			diags.AddError(
+				"Cannot tell which "+f.noun+" this is",
+				"The "+f.noun+" at index "+strconv.Itoa(i)+" carries no key from a previous apply, so the only "+
+					"thing left to identify it by is its position — and the "+f.noun+" that held that position is "+
+					"titled "+strconv.Quote(was)+", not "+strconv.Quote(now)+".\n\n"+
+					"That happens when keys are added in the same apply that reorders, inserts or renames "+
+					"something. Guessing here would attach the id Discord assigned to the wrong "+f.noun+", and "+
+					"members' \"Channels & Roles\" selections hang on those ids.\n\n"+
+					"Add the keys on their own first, leaving every "+f.noun+" where and as it is, and apply. "+
+					"Reordering, renaming and inserting are all safe once the keys are in state.",
+			)
+			continue
+		}
+		claimed[i] = true
+		out[i] = &prior[i]
+	}
+	return out, diags
+}
+
+// adoptableByPosition reports whether a prior element's key names nothing the
+// caller ever chose, leaving position the only identity it has.
+//
+// That is true of exactly two states: one written before `key` existed, where the
+// attribute round-trips as null, and a freshly imported one, where the key is the
+// snowflake because Discord stores no key to recover. A key the caller chose
+// makes the element unadoptable, so renaming one still retires the element and
+// mints a fresh id, as documented.
+//
+// A caller who picks a key that happens to equal its own element's snowflake
+// keeps that element adoptable, so a later rename preserves the id instead of
+// re-minting it. That is the safe direction of the two, and the docs steer
+// callers to readable keys.
+func adoptableByPosition(key, id types.String) bool {
+	k, ok := stableKey(key)
+	if !ok {
+		return true
+	}
+	i, ok := stableKey(id)
+	return ok && k == i
 }
 
 // stableKey reports the key an element can be matched on. An unknown or empty
