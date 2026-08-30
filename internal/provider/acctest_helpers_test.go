@@ -429,6 +429,40 @@ func (m *mockDiscord) serveChannelItem(w http.ResponseWriter, r *http.Request, i
 	}
 }
 
+// captureAttr records a state attribute's value into dst so a later step can
+// assert against it. Server-assigned snowflakes are only knowable at runtime, so
+// "this id did not change" cannot be written as a literal.
+func captureAttr(rn, key string, dst *string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[rn]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", rn)
+		}
+		v, ok := rs.Primary.Attributes[key]
+		if !ok || v == "" {
+			return fmt.Errorf("attribute %s is not set on %s", key, rn)
+		}
+		*dst = v
+		return nil
+	}
+}
+
+// checkAttrEquals asserts an attribute still equals a value captured earlier.
+// resource.TestCheckResourceAttrPtr dereferences at construction time, which is
+// before the capturing step has run, so it cannot express this.
+func checkAttrEquals(rn, key string, want *string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[rn]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", rn)
+		}
+		if got := rs.Primary.Attributes[key]; got != *want {
+			return fmt.Errorf("%s = %q, want the previously assigned %q", key, got, *want)
+		}
+		return nil
+	}
+}
+
 // importIDFunc builds an ImportState id by joining the named state attributes
 // with "/", matching each resource's ImportState format.
 func importIDFunc(rn string, attrNames ...string) resource.ImportStateIdFunc {
