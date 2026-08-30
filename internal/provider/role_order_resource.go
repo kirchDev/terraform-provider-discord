@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -64,9 +65,11 @@ func (r *roleOrderResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"(top to bottom, as the role list reads); the resource sets their relative positions and re-applies on " +
 			"drift. Only the listed roles are touched: they are ordered **relative to one another** in the slots they " +
 			"already hold, so roles you do not list keep theirs. An **integration-managed** role (Server Booster, a " +
-			"Twitch subscriber tier) cannot be moved by anyone — listing one fails the apply, naming it. The bot can " +
-			"only reorder roles **below its own highest role**, and the `@everyone` role cannot be moved — do not " +
-			"list it. Leave per-role `position` unset and order here.",
+			"Twitch subscriber tier) cannot be moved by anyone — listing one fails the apply, naming it. Where the " +
+			"listed roles cannot each be given a position without climbing over a role you did not list, the apply " +
+			"fails naming that role rather than writing a position Discord would reject — list the roles in between " +
+			"as well. The bot can only reorder roles **below its own highest role**, and the `@everyone` role cannot " +
+			"be moved — do not list it. Leave per-role `position` unset and order here.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the guild.",
@@ -121,9 +124,41 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 		positions[id] = role.Position
 	}
 	listed := listedSet(ids)
+	taken := occupiedPositions(positions, listed)
 	// @everyone sits at position 0 and cannot be moved, so real roles start at 1.
-	body := orderPositions(ids, positions, occupiedPositions(positions, listed), 1, true)
+	// The ceiling keeps the set from climbing over a role it does not manage: the
+	// app's own role is integration-managed, so it is never listed, and a write at
+	// or above it comes back as the bare 50013 this resource exists to replace.
+	body, err := orderPositions(ids, positions, taken, 1, crossingCeiling(ids, positions, taken), true)
+	if err != nil {
+		var room *orderRoomError
+		if errors.As(err, &room) {
+			return fmt.Errorf("cannot order the listed roles without moving %s, which is not listed: %s — "+
+				"list the roles in between as well, or free a position below it",
+				roleAt(roles, room.Ceiling), room)
+		}
+		return err
+	}
 	return r.client.Write(ctx, "PATCH", "/guilds/"+guildID+"/roles", body, nil)
+}
+
+// roleAt names the role holding a position, so an error a reader gets points at
+// something they can see in the role list. Positions can be shared, so the lowest
+// id wins rather than whichever one map iteration reached first.
+func roleAt(roles map[string]rolePos, position int64) string {
+	name, found := "", ""
+	for id, role := range roles {
+		if role.Position != position {
+			continue
+		}
+		if found == "" || id < found {
+			found, name = id, role.Name
+		}
+	}
+	if found == "" {
+		return fmt.Sprintf("the role on position %d", position)
+	}
+	return fmt.Sprintf("%q (%s)", name, found)
 }
 
 // roles reads the guild's roles keyed by id.

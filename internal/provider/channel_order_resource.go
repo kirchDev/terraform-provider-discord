@@ -129,7 +129,13 @@ func (r *channelOrderResource) apply(ctx context.Context, m *channelOrderResourc
 			positions[id] = c.Position
 		}
 	}
-	body := orderPositions(ids, positions, occupiedPositions(positions, listed), 0, false)
+	// noCeiling: unlike roles there is nothing above a category's children the bot
+	// may not write past, and every freshly created channel arrives on the same
+	// position — so making a shortfall up from above is both safe and routine.
+	body, err := orderPositions(ids, positions, occupiedPositions(positions, listed), 0, noCeiling, false)
+	if err != nil {
+		return err
+	}
 	return r.client.Write(ctx, "PATCH", "/guilds/"+guildID+"/channels", body, nil)
 }
 
