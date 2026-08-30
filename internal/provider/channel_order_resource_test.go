@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -22,6 +23,11 @@ const (
 	channelOrderFreshB        = "900000000000000320"
 	channelOrderFreshC        = "900000000000000330"
 	channelOrderFreshForeign  = "900000000000000340"
+
+	channelOrderGoneGuildID  = "900000000000000006"
+	channelOrderGoneCategory = "900000000000000600"
+	channelOrderGoneForeign  = "900000000000000610"
+	channelOrderGone         = "900000000000000620"
 )
 
 // TestAccChannelOrderResource_subsetWithForeignChannel is the channel half of the
@@ -113,4 +119,37 @@ resource "discord_channel_order" "fresh" {
 			),
 		}},
 	})
+}
+
+// TestAccChannelOrderResource_rejectsUnknownChannel covers the one path where the
+// dense block survived: a listed channel deleted out of band resolves to nothing,
+// so it contributes neither a slot to reuse nor a sibling to route around, and the
+// top-up hands out 0,1,2,… over whatever the category already holds. A channel
+// that is not there cannot be ordered, so the resource says which one is missing.
+func TestAccChannelOrderResource_rejectsUnknownChannel(t *testing.T) {
+	m := newMockDiscord(t)
+	m.seedChannel(channelOrderGoneCategory, channelOrderGoneGuildID, "Managed", "", 0)
+	m.seedChannel(channelOrderGoneForeign, channelOrderGoneGuildID, "hand-made", channelOrderGoneCategory, 0)
+
+	cfg := fmt.Sprintf(`
+resource "discord_channel_order" "test" {
+  server_id   = %q
+  parent_id   = %q
+  channel_ids = [%q]
+}
+`, channelOrderGoneGuildID, channelOrderGoneCategory, channelOrderGone)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{{
+			Config: cfg,
+			// Matched on the provider's own wording: the id alone also appears in
+			// the "element 0 has vanished" failure this guard replaces.
+			ExpectError: regexp.MustCompile(`(?s)no\s+channel\s+` + channelOrderGone),
+		}},
+	})
+
+	if got := m.channelPositions()[channelOrderGoneForeign]; got != 0 {
+		t.Errorf("hand-made channel moved to position %d, want it left on 0", got)
+	}
 }

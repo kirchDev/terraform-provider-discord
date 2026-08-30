@@ -114,6 +114,14 @@ func (r *channelOrderResource) apply(ctx context.Context, m *channelOrderResourc
 	if err != nil {
 		return err
 	}
+	for _, id := range ids {
+		if _, ok := all[id]; !ok {
+			// A channel that is not there holds no slot to reuse and occupies none
+			// to route around, so it would silently become a shortfall for the
+			// position arithmetic to invent a slot for.
+			return fmt.Errorf("no channel %s in this server — channel_ids may only list channels that exist", id)
+		}
+	}
 	listed := listedSet(ids)
 	// Positions are compared within a parent, so only channels under the same
 	// parents as the listed ones occupy a slot that could collide with them.

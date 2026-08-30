@@ -187,3 +187,34 @@ resource "discord_role_order" "test" {
 		}},
 	})
 }
+
+// TestAccRoleOrderResource_rejectsUnknownRole is the role half of the same guard:
+// a role deleted out of band contributes neither a slot to reuse nor a sibling to
+// route around, so it silently turns into a shortfall the top-up then has to
+// invent positions for. The resource names the missing role instead.
+func TestAccRoleOrderResource_rejectsUnknownRole(t *testing.T) {
+	m := newMockDiscord(t)
+	m.seedRole(roleOrderDenseGuildID, "@everyone", 0, false)
+	m.seedRole(roleOrderDenseMembers, "Members", 1, false)
+
+	cfg := fmt.Sprintf(`
+resource "discord_role_order" "test" {
+  server_id = %q
+  role_ids  = [%q, %q]
+}
+`, roleOrderDenseGuildID, roleOrderDenseAdmins, roleOrderDenseMembers)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{{
+			Config: cfg,
+			// Matched on the provider's own wording: the id alone also appears in
+			// the "produced an unexpected new value" failure this guard replaces.
+			ExpectError: regexp.MustCompile(`(?s)no\s+role\s+` + roleOrderDenseAdmins),
+		}},
+	})
+
+	if got := m.rolePositions()[roleOrderDenseMembers]; got != 1 {
+		t.Errorf("Members moved to position %d, want it left on 1", got)
+	}
+}

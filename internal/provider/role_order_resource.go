@@ -112,10 +112,17 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 	if err != nil {
 		return err
 	}
-	// A managed role cannot be moved whatever the bot's own place in the
-	// hierarchy; Discord answers the whole PATCH with a bare 50013.
 	for _, id := range ids {
-		if role, ok := roles[id]; ok && role.Managed {
+		role, ok := roles[id]
+		if !ok {
+			// A role that is not there holds no slot to reuse and occupies none to
+			// route around, so it would silently become a shortfall for the
+			// position arithmetic to invent a slot for.
+			return fmt.Errorf("no role %s in this server — role_ids may only list roles that exist", id)
+		}
+		// A managed role cannot be moved whatever the bot's own place in the
+		// hierarchy; Discord answers the whole PATCH with a bare 50013.
+		if role.Managed {
 			return fmt.Errorf("role %q (%s) is managed by an integration and cannot be reordered — remove it from role_ids", role.Name, id)
 		}
 	}
