@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -13,6 +14,7 @@ const (
 	roleOrderForeign = "900000000000000020"
 	roleOrderMid     = "900000000000000030"
 	roleOrderHigh    = "900000000000000040"
+	roleOrderBooster = "900000000000000050"
 )
 
 // TestAccRoleOrderResource_subsetWithForeignRole orders a strict subset of the
@@ -54,6 +56,33 @@ resource "discord_role_order" "test" {
 				checkAtSlot(m.rolePositions, roleOrderLow, 1),
 				checkNoSharedSlot(m.rolePositions),
 			),
+		}},
+	})
+}
+
+// TestAccRoleOrderResource_rejectsManagedRole covers the second failure listed on
+// the issue: an integration-managed role (Server Booster, a Twitch subscriber tier)
+// cannot be moved by anyone, whatever the bot's own place in the hierarchy, and
+// Discord answers the whole PATCH with a bare 50013 "Missing Permissions". The
+// provider names the offending role instead.
+func TestAccRoleOrderResource_rejectsManagedRole(t *testing.T) {
+	m := newMockDiscord(t)
+	m.seedRole(roleOrderGuildID, "@everyone", 0, false)
+	m.seedRole(roleOrderLow, "Members", 1, false)
+	m.seedRole(roleOrderBooster, "Server Booster", 2, true)
+
+	cfg := fmt.Sprintf(`
+resource "discord_role_order" "test" {
+  server_id = %q
+  role_ids  = [%q, %q]
+}
+`, roleOrderGuildID, roleOrderBooster, roleOrderLow)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{{
+			Config:      cfg,
+			ExpectError: regexp.MustCompile(`Server Booster`),
 		}},
 	})
 }

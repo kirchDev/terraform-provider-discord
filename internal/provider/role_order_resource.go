@@ -43,10 +43,14 @@ type roleOrderResourceModel struct {
 	RoleIDs  types.List   `tfsdk:"role_ids"`
 }
 
-// rolePos is the slice of a role object this resource reads.
+// rolePos is the slice of a role object this resource reads. `managed` is read
+// because an integration-managed role (Server Booster, a Twitch subscriber tier)
+// cannot be moved by anyone — listing one makes Discord reject the whole PATCH.
 type rolePos struct {
 	ID       string `json:"id"`
+	Name     string `json:"name"`
 	Position int64  `json:"position"`
+	Managed  bool   `json:"managed"`
 }
 
 func (r *roleOrderResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -59,9 +63,10 @@ func (r *roleOrderResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"endpoint — the robust alternative to per-role `position`. List the roles from **highest to lowest** " +
 			"(top to bottom, as the role list reads); the resource sets their relative positions and re-applies on " +
 			"drift. Only the listed roles are touched: they are ordered **relative to one another** in the slots they " +
-			"already hold, so roles you do not list keep theirs. The bot can only reorder roles **below its own " +
-			"highest role**, and the `@everyone` role cannot be moved — do not list it. Leave per-role `position` " +
-			"unset and order here.",
+			"already hold, so roles you do not list keep theirs. An **integration-managed** role (Server Booster, a " +
+			"Twitch subscriber tier) cannot be moved by anyone — listing one fails the apply, naming it. The bot can " +
+			"only reorder roles **below its own highest role**, and the `@everyone` role cannot be moved — do not " +
+			"list it. Leave per-role `position` unset and order here.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the guild.",
@@ -103,6 +108,13 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 	roles, err := r.roles(ctx, guildID)
 	if err != nil {
 		return err
+	}
+	// A managed role cannot be moved whatever the bot's own place in the
+	// hierarchy; Discord answers the whole PATCH with a bare 50013.
+	for _, id := range ids {
+		if role, ok := roles[id]; ok && role.Managed {
+			return fmt.Errorf("role %q (%s) is managed by an integration and cannot be reordered — remove it from role_ids", role.Name, id)
+		}
 	}
 	positions := make(map[string]int64, len(roles))
 	for id, role := range roles {
