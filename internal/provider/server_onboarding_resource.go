@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -78,6 +79,7 @@ type onboardingWire struct {
 // --- model (tfsdk) ---
 
 type onboardingOptionModel struct {
+	Key         types.String `tfsdk:"key"`
 	ID          types.String `tfsdk:"id"`
 	Title       types.String `tfsdk:"title"`
 	Description types.String `tfsdk:"description"`
@@ -88,6 +90,7 @@ type onboardingOptionModel struct {
 }
 
 type onboardingPromptModel struct {
+	Key          types.String `tfsdk:"key"`
 	ID           types.String `tfsdk:"id"`
 	Type         types.Int64  `tfsdk:"type"`
 	Title        types.String `tfsdk:"title"`
@@ -98,6 +101,7 @@ type onboardingPromptModel struct {
 }
 
 var onboardingOptionAttrTypes = map[string]attr.Type{
+	"key":         types.StringType,
 	"id":          types.StringType,
 	"title":       types.StringType,
 	"description": types.StringType,
@@ -108,6 +112,7 @@ var onboardingOptionAttrTypes = map[string]attr.Type{
 }
 
 var onboardingPromptAttrTypes = map[string]attr.Type{
+	"key":           types.StringType,
 	"id":            types.StringType,
 	"type":          types.Int64Type,
 	"title":         types.StringType,
@@ -130,11 +135,22 @@ func (r *serverOnboardingResource) Metadata(_ context.Context, req resource.Meta
 }
 
 func (r *serverOnboardingResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	// The id is Computed with no UseStateForUnknown: that modifier matches prior
+	// state by list index, which is exactly what corrupts an id on an insert.
+	// The `prompts` plan modifier resolves it from `key` instead.
 	snowflakeID := func(noun string) schema.StringAttribute {
 		return schema.StringAttribute{
 			MarkdownDescription: "Snowflake ID of the " + noun + ", assigned by Discord.",
 			Computed:            true,
-			PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+		}
+	}
+	stableKeyAttr := func(noun string) schema.StringAttribute {
+		return schema.StringAttribute{
+			MarkdownDescription: "Stable, caller-chosen key identifying this " + noun + " across applies. " +
+				"It is never sent to Discord — it is what lets the provider keep the id Discord assigned " +
+				"when the " + noun + " is renamed, reordered, or has siblings inserted around it. " +
+				"Changing a key retires that " + noun + " and creates a new one with a fresh id.",
+			Required: true,
 		}
 	}
 	optComputedStrSet := func(desc string) schema.SetAttribute {
@@ -164,11 +180,14 @@ func (r *serverOnboardingResource) Schema(_ context.Context, _ resource.SchemaRe
 			},
 			"default_channel_ids": optComputedStrSet("Channel ids members are opted into by default."),
 			"prompts": schema.ListNestedAttribute{
-				MarkdownDescription: "Ordered onboarding prompts shown to new members.",
+				MarkdownDescription: "Ordered onboarding prompts shown to new members. Each prompt carries a caller-chosen `key` that identifies it across applies.",
 				Optional:            true,
 				Computed:            true,
+				Validators:          []validator.List{uniqueNestedKey("prompt")},
+				PlanModifiers:       []planmodifier.List{onboardingIdentity()},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
+						"key":           stableKeyAttr("prompt"),
 						"id":            snowflakeID("prompt"),
 						"type":          schema.Int64Attribute{MarkdownDescription: "Prompt type (`0` multiple choice, `1` dropdown).", Required: true, Validators: []validator.Int64{int64OneOf(0, 1)}},
 						"title":         schema.StringAttribute{MarkdownDescription: "Prompt title.", Required: true},
@@ -176,10 +195,12 @@ func (r *serverOnboardingResource) Schema(_ context.Context, _ resource.SchemaRe
 						"required":      schema.BoolAttribute{MarkdownDescription: "Whether the prompt must be answered to finish onboarding.", Optional: true, Computed: true},
 						"in_onboarding": schema.BoolAttribute{MarkdownDescription: "Whether the prompt appears in the onboarding flow (vs. only in Channels & Roles).", Optional: true, Computed: true},
 						"options": schema.ListNestedAttribute{
-							MarkdownDescription: "Selectable options for the prompt.",
+							MarkdownDescription: "Selectable options for the prompt. Each option carries a caller-chosen `key` that identifies it across applies.",
 							Required:            true,
+							Validators:          []validator.List{uniqueNestedKey("option")},
 							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
+									"key":         stableKeyAttr("option"),
 									"id":          snowflakeID("option"),
 									"title":       schema.StringAttribute{MarkdownDescription: "Option title.", Required: true},
 									"description": schema.StringAttribute{MarkdownDescription: "Option description.", Optional: true},
@@ -400,7 +421,15 @@ func (r *serverOnboardingResource) readInto(ctx context.Context, m *serverOnboar
 	}
 	m.DefaultChannelIDs = set
 
-	prompts, err := onboardingPromptsToState(ctx, a.Prompts)
+	// Read the keys out of the value being refreshed before overwriting it —
+	// Discord does not store them, so this is the only place they survive.
+	var diags diag.Diagnostics
+	prior := onboardingModelsFromList(ctx, m.Prompts, &diags)
+	if diags.HasError() {
+		return fmt.Errorf("reading the prompt keys already in state")
+	}
+
+	prompts, err := onboardingPromptsToState(ctx, a.Prompts, prior)
 	if err != nil {
 		return err
 	}
@@ -408,15 +437,25 @@ func (r *serverOnboardingResource) readInto(ctx context.Context, m *serverOnboar
 	return nil
 }
 
-func onboardingPromptsToState(ctx context.Context, wire []onboardingPromptWire) (types.List, error) {
+func onboardingPromptsToState(ctx context.Context, wire []onboardingPromptWire, prior []onboardingPromptModel) (types.List, error) {
 	promptType := types.ObjectType{AttrTypes: onboardingPromptAttrTypes}
 	models := make([]onboardingPromptModel, 0, len(wire))
-	for _, p := range wire {
-		options, err := onboardingOptionsToState(ctx, p.Options)
+	for i, p := range wire {
+		key, match := onboardingPromptKey(p.ID, i, prior)
+		var priorOptions []onboardingOptionModel
+		if match != nil {
+			var diags diag.Diagnostics
+			priorOptions = onboardingOptionModelsFromList(ctx, match.Options, &diags)
+			if diags.HasError() {
+				return types.ListNull(promptType), fmt.Errorf("reading the option keys already in state")
+			}
+		}
+		options, err := onboardingOptionsToState(ctx, p.Options, priorOptions)
 		if err != nil {
 			return types.ListNull(promptType), err
 		}
 		models = append(models, onboardingPromptModel{
+			Key:          key,
 			ID:           types.StringValue(p.ID),
 			Type:         types.Int64Value(p.Type),
 			Title:        types.StringValue(p.Title),
@@ -433,10 +472,10 @@ func onboardingPromptsToState(ctx context.Context, wire []onboardingPromptWire) 
 	return list, nil
 }
 
-func onboardingOptionsToState(ctx context.Context, wire []onboardingOptionWire) (types.List, error) {
+func onboardingOptionsToState(ctx context.Context, wire []onboardingOptionWire, prior []onboardingOptionModel) (types.List, error) {
 	optType := types.ObjectType{AttrTypes: onboardingOptionAttrTypes}
 	models := make([]onboardingOptionModel, 0, len(wire))
-	for _, o := range wire {
+	for i, o := range wire {
 		channelIDs, hadErr := setOfStrings(ctx, o.ChannelIDs)
 		if hadErr {
 			return types.ListNull(optType), fmt.Errorf("building option channel_ids state")
@@ -451,6 +490,7 @@ func onboardingOptionsToState(ctx context.Context, wire []onboardingOptionWire) 
 			emojiName = nullIfEmpty(o.Emoji.Name)
 		}
 		models = append(models, onboardingOptionModel{
+			Key:         onboardingOptionKey(o.ID, i, prior),
 			ID:          types.StringValue(o.ID),
 			Title:       types.StringValue(o.Title),
 			Description: nullIfEmpty(o.Description),

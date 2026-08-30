@@ -14,6 +14,12 @@ Manages the onboarding configuration of a Community Discord guild (a singleton p
 
 ```terraform
 # Onboarding with one multiple-choice prompt offering two opt-in options.
+#
+# Every prompt and option carries a `key` you choose. Discord never sees it: it
+# is what lets the provider keep the id Discord assigned when you rename a
+# prompt, reorder the list, or insert another one above it. Pick keys you will
+# not want to change — changing one retires that prompt or option and creates a
+# new one with a fresh id, which drops the members' selections hanging on it.
 resource "discord_server_onboarding" "main" {
   server_id           = "123456789012345678"
   enabled             = true
@@ -22,6 +28,7 @@ resource "discord_server_onboarding" "main" {
 
   prompts = [
     {
+      key           = "why_here"
       type          = 0 # multiple choice
       title         = "What are you here for?"
       single_select = false
@@ -30,12 +37,14 @@ resource "discord_server_onboarding" "main" {
 
       options = [
         {
+          key         = "announcements"
           title       = "Announcements"
           description = "Get notified about the latest news."
           emoji_name  = "📣" # unicode emoji
           channel_ids = ["456789012345678901"]
         },
         {
+          key   = "browsing"
           title = "Just browsing"
         },
       ]
@@ -56,14 +65,15 @@ resource "discord_server_onboarding" "main" {
 - `default_channel_ids` (Set of String) Channel ids members are opted into by default.
 - `enabled` (Boolean) Whether onboarding is enabled.
 - `mode` (Number) Onboarding mode (`0` default, `1` advanced).
-- `prompts` (Attributes List) Ordered onboarding prompts shown to new members. (see [below for nested schema](#nestedatt--prompts))
+- `prompts` (Attributes List) Ordered onboarding prompts shown to new members. Each prompt carries a caller-chosen `key` that identifies it across applies. (see [below for nested schema](#nestedatt--prompts))
 
 <a id="nestedatt--prompts"></a>
 ### Nested Schema for `prompts`
 
 Required:
 
-- `options` (Attributes List) Selectable options for the prompt. (see [below for nested schema](#nestedatt--prompts--options))
+- `key` (String) Stable, caller-chosen key identifying this prompt across applies. It is never sent to Discord — it is what lets the provider keep the id Discord assigned when the prompt is renamed, reordered, or has siblings inserted around it. Changing a key retires that prompt and creates a new one with a fresh id.
+- `options` (Attributes List) Selectable options for the prompt. Each option carries a caller-chosen `key` that identifies it across applies. (see [below for nested schema](#nestedatt--prompts--options))
 - `title` (String) Prompt title.
 - `type` (Number) Prompt type (`0` multiple choice, `1` dropdown).
 
@@ -82,6 +92,7 @@ Read-Only:
 
 Required:
 
+- `key` (String) Stable, caller-chosen key identifying this option across applies. It is never sent to Discord — it is what lets the provider keep the id Discord assigned when the option is renamed, reordered, or has siblings inserted around it. Changing a key retires that option and creates a new one with a fresh id.
 - `title` (String) Option title.
 
 Optional:
