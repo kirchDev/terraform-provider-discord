@@ -4,11 +4,14 @@ page_title: "discord_server_onboarding Resource - discord"
 subcategory: ""
 description: |-
   Manages the onboarding configuration of a Community Discord guild (a singleton per guild). The prompts tree, enabled, mode and default_channel_ids are all refreshed from the API so drift is detected.
+  Adding key to an onboarding that predates it — a configuration written before the attribute existed, or one you have just imported — keeps the ids Discord already assigned: nothing in state names an entry yet, so that one apply matches your new keys on by position. Add the keys on their own, leaving every entry where and as it is, and apply; make the other changes afterwards, when matching is on the keys alone and reordering, renaming and inserting are all safe. Move the list in that first apply and the plan fails rather than attaching an id to the wrong entry.
 ---
 
 # discord_server_onboarding (Resource)
 
 Manages the onboarding configuration of a Community Discord guild (a singleton per guild). The `prompts` tree, `enabled`, `mode` and `default_channel_ids` are all refreshed from the API so drift is detected.
+
+**Adding `key` to an onboarding that predates it** — a configuration written before the attribute existed, or one you have just imported — keeps the ids Discord already assigned: nothing in state names an entry yet, so that one apply matches your new keys on by position. Add the keys on their own, leaving every entry where and as it is, and apply; make the other changes afterwards, when matching is on the keys alone and reordering, renaming and inserting are all safe. Move the list in that first apply and the plan fails rather than attaching an id to the wrong entry.
 
 ## Example Usage
 
