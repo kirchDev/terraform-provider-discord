@@ -3,12 +3,12 @@
 page_title: "discord_role_order Resource - discord"
 subcategory: ""
 description: |-
-  Declaratively orders roles in the guild hierarchy via Discord's modify-role-positions endpoint — the robust alternative to per-role position. List the roles from highest to lowest (top to bottom, as the role list reads); the resource sets their relative positions and re-applies on drift. Only the listed roles are touched. The bot can only reorder roles below its own highest role, and the @everyone role cannot be moved — do not list it. Leave per-role position unset and order here.
+  Declaratively orders roles in the guild hierarchy via Discord's modify-role-positions endpoint — the robust alternative to per-role position. List the roles from highest to lowest (top to bottom, as the role list reads); the resource sets their relative positions and re-applies on drift. Only the listed roles are touched: they are ordered relative to one another in the slots they already hold, so roles you do not list keep theirs. The bot can only reorder roles below its own highest role, and the @everyone role cannot be moved — do not list it. Leave per-role position unset and order here.
 ---
 
 # discord_role_order (Resource)
 
-Declaratively orders roles in the guild hierarchy via Discord's modify-role-positions endpoint — the robust alternative to per-role `position`. List the roles from **highest to lowest** (top to bottom, as the role list reads); the resource sets their relative positions and re-applies on drift. Only the listed roles are touched. The bot can only reorder roles **below its own highest role**, and the `@everyone` role cannot be moved — do not list it. Leave per-role `position` unset and order here.
+Declaratively orders roles in the guild hierarchy via Discord's modify-role-positions endpoint — the robust alternative to per-role `position`. List the roles from **highest to lowest** (top to bottom, as the role list reads); the resource sets their relative positions and re-applies on drift. Only the listed roles are touched: they are ordered **relative to one another** in the slots they already hold, so roles you do not list keep theirs. The bot can only reorder roles **below its own highest role**, and the `@everyone` role cannot be moved — do not list it. Leave per-role `position` unset and order here.
 
 ## Example Usage
 

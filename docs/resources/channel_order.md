@@ -3,12 +3,12 @@
 page_title: "discord_channel_order Resource - discord"
 subcategory: ""
 description: |-
-  Declaratively orders a list of sibling channels via Discord's bulk modify-channel-positions endpoint — the robust alternative to per-channel position. List the channels in the order you want; the resource assigns their relative positions and re-applies them on drift. Use one per category (its children) and one without parent_id for the top level (categories and uncategorised channels). Only the listed channels are touched, so it coexists with bot-managed channels.
+  Declaratively orders a list of sibling channels via Discord's bulk modify-channel-positions endpoint — the robust alternative to per-channel position. List the channels in the order you want; the resource assigns their relative positions and re-applies them on drift. Use one per category (its children) and one without parent_id for the top level (categories and uncategorised channels). Only the listed channels are touched: they are ordered relative to one another in the slots they already hold, so a sibling you do not list — a channel made in the Discord client, a bot-managed one — keeps its own.
 ---
 
 # discord_channel_order (Resource)
 
-Declaratively orders a list of sibling channels via Discord's bulk modify-channel-positions endpoint — the robust alternative to per-channel `position`. List the channels in the order you want; the resource assigns their relative positions and re-applies them on drift. Use one per category (its children) and one without `parent_id` for the top level (categories and uncategorised channels). Only the listed channels are touched, so it coexists with bot-managed channels.
+Declaratively orders a list of sibling channels via Discord's bulk modify-channel-positions endpoint — the robust alternative to per-channel `position`. List the channels in the order you want; the resource assigns their relative positions and re-applies them on drift. Use one per category (its children) and one without `parent_id` for the top level (categories and uncategorised channels). Only the listed channels are touched: they are ordered **relative to one another** in the slots they already hold, so a sibling you do not list — a channel made in the Discord client, a bot-managed one — keeps its own.
 
 ## Example Usage
 

@@ -63,7 +63,9 @@ func (r *channelOrderResource) Schema(_ context.Context, _ resource.SchemaReques
 			"modify-channel-positions endpoint — the robust alternative to per-channel `position`. List the channels " +
 			"in the order you want; the resource assigns their relative positions and re-applies them on drift. Use one " +
 			"per category (its children) and one without `parent_id` for the top level (categories and uncategorised " +
-			"channels). Only the listed channels are touched, so it coexists with bot-managed channels.",
+			"channels). Only the listed channels are touched: they are ordered **relative to one another** in the slots " +
+			"they already hold, so a sibling you do not list — a channel made in the Discord client, a bot-managed " +
+			"one — keeps its own.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the guild.",
@@ -98,17 +100,63 @@ func (r *channelOrderResource) Configure(_ context.Context, req resource.Configu
 	r.client = c
 }
 
-// apply assigns position = list index to each channel via the bulk endpoint.
+// apply orders the listed channels among themselves, first-listed at the top. It
+// only ever writes slots the listed channels already hold, so a sibling this
+// resource does not manage — a channel someone made in the Discord client — stays
+// where it is and Discord has no collision to renormalise (see order_common.go).
 func (r *channelOrderResource) apply(ctx context.Context, m *channelOrderResourceModel) error {
 	var ids []string
 	if d := m.ChannelIDs.ElementsAs(ctx, &ids, false); d.HasError() {
 		return fmt.Errorf("reading channel_ids")
 	}
-	body := make([]map[string]any, len(ids))
-	for i, id := range ids {
-		body[i] = map[string]any{"id": id, "position": i}
+	guildID := m.ServerID.ValueString()
+	all, err := r.channels(ctx, guildID)
+	if err != nil {
+		return err
 	}
-	return r.client.Write(ctx, "PATCH", "/guilds/"+m.ServerID.ValueString()+"/channels", body, nil)
+	listed := listedSet(ids)
+	// Positions are compared within a parent, so only channels under the same
+	// parents as the listed ones occupy a slot that could collide with them.
+	parents := map[string]bool{}
+	for _, id := range ids {
+		if c, ok := all[id]; ok {
+			parents[parentKey(c)] = true
+		}
+	}
+	positions := map[string]int64{}
+	for id, c := range all {
+		if listed[id] || parents[parentKey(c)] {
+			positions[id] = c.Position
+		}
+	}
+	body := orderPositions(ids, positions, occupiedPositions(positions, listed), 0, false)
+	return r.client.Write(ctx, "PATCH", "/guilds/"+guildID+"/channels", body, nil)
+}
+
+// channels reads the guild's channels keyed by id.
+func (r *channelOrderResource) channels(ctx context.Context, guildID string) (map[string]channelPos, error) {
+	raws, err := r.client.List(ctx, "/guilds/"+guildID+"/channels")
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]channelPos, len(raws))
+	for _, raw := range raws {
+		var c channelPos
+		if err := json.Unmarshal(raw, &c); err != nil {
+			return nil, err
+		}
+		out[c.ID] = c
+	}
+	return out, nil
+}
+
+// parentKey identifies a channel's sibling group: its category, or "" for the top
+// level (categories and uncategorised channels).
+func parentKey(c channelPos) string {
+	if c.ParentID == nil {
+		return ""
+	}
+	return *c.ParentID
 }
 
 func (r *channelOrderResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
