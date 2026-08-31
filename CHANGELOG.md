@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.7.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.6.0...v0.7.0) (2026-08-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **onboarding:** key prompts and options on a caller-supplied key ([#37](https://github.com/kirchDev/terraform-provider-discord/issues/37))
+
+### Features
+
+* **queue:** cut the queue branch on the first worker PR ([#33](https://github.com/kirchDev/terraform-provider-discord/issues/33)) ([b88e630](https://github.com/kirchDev/terraform-provider-discord/commit/b88e630a41f46793d3be81e9279e4152ca79f74a))
+
+
+### Bug Fixes
+
+* **ci:** let the queue PR body wrap itself ([374708b](https://github.com/kirchDev/terraform-provider-discord/commit/374708b2ff0d5e5aded114a1ea31c4176188321d))
+* **ci:** read the Queue App PEM from this owner's own -ci mirror ([127776e](https://github.com/kirchDev/terraform-provider-discord/commit/127776e5cd0b83962db064b916f4a086f4b67dc6))
+* **deps:** update the dependencies across Go, npm and Actions ([#40](https://github.com/kirchDev/terraform-provider-discord/issues/40)) ([7919ef1](https://github.com/kirchDev/terraform-provider-discord/commit/7919ef1dd9e735b75c169e42d8a3a00b1dd9b88d))
+* **onboarding:** key prompts and options on a caller-supplied key ([#37](https://github.com/kirchDev/terraform-provider-discord/issues/37)) ([40d5ff1](https://github.com/kirchDev/terraform-provider-discord/commit/40d5ff10b9c9e2ee11a7463df979816d19f115db))
+* **order:** order listed roles and channels without displacing their siblings ([#38](https://github.com/kirchDev/terraform-provider-discord/issues/38)) ([5f541fb](https://github.com/kirchDev/terraform-provider-discord/commit/5f541fbadd500944e05d6ae1727542acae375f59))
+
 ## [0.6.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.5.0...v0.6.0) (2026-07-26)
 
 
