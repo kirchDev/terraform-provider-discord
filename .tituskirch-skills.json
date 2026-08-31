@@ -62,7 +62,8 @@
       "needsHuman": "ai: needs human",
       "done": "ai: done",
       "blocked": "ai: blocked",
-      "repo": false
+      "repo": false,
+      "needsTriage": "needs triage"
     },
     "review": {
       "maxRounds": 3
@@ -73,5 +74,22 @@
       "priority: medium",
       "priority: low"
     ]
+  },
+  "profiles": {
+    "fleet": {
+      "work": {
+        "concurrency": 8,
+        "branch": "worktree",
+        "parallel": true
+      }
+    },
+    "fleet-with-queue": {
+      "work": {
+        "concurrency": 8,
+        "branch": "worktree",
+        "parallel": true,
+        "queueBranch": true
+      }
+    }
   }
 }

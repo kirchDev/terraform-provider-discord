@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // --- Small, dependency-free value validators for the provider's enum and range
@@ -57,6 +58,50 @@ func (v int64BetweenValidator) ValidateInt64(_ context.Context, req validator.In
 	}
 	if val := req.ConfigValue.ValueInt64(); val < v.min || val > v.max {
 		resp.Diagnostics.AddAttributeError(req.Path, "Invalid value", fmt.Sprintf("must be between %d and %d, got %d", v.min, v.max, val))
+	}
+}
+
+// uniqueNestedKeyValidator rejects duplicate `key` values within a nested list.
+// The key is an element's identity across applies, so two elements sharing one
+// would both match the same prior element and the loser's server-assigned id
+// would be re-minted — the corruption the key exists to prevent.
+type uniqueNestedKeyValidator struct{ noun string }
+
+func uniqueNestedKey(noun string) validator.List { return uniqueNestedKeyValidator{noun} }
+
+func (v uniqueNestedKeyValidator) Description(_ context.Context) string {
+	return fmt.Sprintf("every %s must carry a unique key", v.noun)
+}
+
+func (v uniqueNestedKeyValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v uniqueNestedKeyValidator) ValidateList(_ context.Context, req validator.ListRequest, resp *validator.ListResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	elements := req.ConfigValue.Elements()
+	seen := make(map[string]int, len(elements))
+	for i, el := range elements {
+		obj, ok := el.(types.Object)
+		if !ok {
+			continue
+		}
+		key, ok := obj.Attributes()["key"].(types.String)
+		if !ok || key.IsNull() || key.IsUnknown() {
+			continue
+		}
+		if first, dup := seen[key.ValueString()]; dup {
+			resp.Diagnostics.AddAttributeError(
+				req.Path.AtListIndex(i).AtName("key"),
+				"Duplicate key",
+				fmt.Sprintf("%s key %q is already used at index %d. Each key must be unique so the id Discord assigned stays attached to the right %s.",
+					v.noun, key.ValueString(), first, v.noun),
+			)
+			continue
+		}
+		seen[key.ValueString()] = i
 	}
 }
 

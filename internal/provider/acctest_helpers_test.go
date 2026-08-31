@@ -83,6 +83,57 @@ func (m *mockDiscord) id() string {
 	return strconv.Itoa(100000000000000000 + m.nextID)
 }
 
+// seedRole plants a role with a fixed id and position, so a test can start from a
+// guild whose hierarchy the provider did not build — the ordering resources manage
+// a subset of roles that already exist, integration-managed ones included.
+func (m *mockDiscord) seedRole(id, name string, position int64, managed bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.roles[id] = map[string]any{
+		"id": id, "name": name, "position": float64(position), "managed": managed,
+		"color": float64(0), "hoist": false, "mentionable": false, "permissions": "0",
+	}
+}
+
+// seedChannel plants a channel with a fixed id, parent and position — the channel
+// analogue of seedRole.
+func (m *mockDiscord) seedChannel(id, guildID, name, parentID string, position int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	attrs := map[string]any{
+		"id": id, "guild_id": guildID, "name": name, "type": float64(0),
+		"position": float64(position), "nsfw": false, "rate_limit_per_user": float64(0),
+	}
+	if parentID != "" {
+		attrs["parent_id"] = parentID
+	}
+	m.channels[id] = attrs
+}
+
+// rolePositions reads back the live position of every role, so a check can assert
+// on what the provider actually wrote rather than on what it put in state.
+func (m *mockDiscord) rolePositions() map[string]int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return positionsOf(m.roles)
+}
+
+// channelPositions is the channel analogue of rolePositions.
+func (m *mockDiscord) channelPositions() map[string]int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return positionsOf(m.channels)
+}
+
+func positionsOf(objects map[string]map[string]any) map[string]int64 {
+	out := make(map[string]int64, len(objects))
+	for id, a := range objects {
+		p, _ := a["position"].(float64)
+		out[id] = int64(p)
+	}
+	return out
+}
+
 func (m *mockDiscord) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -388,23 +439,44 @@ func (m *mockDiscord) serveRoleItem(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (m *mockDiscord) serveChannelsCollection(w http.ResponseWriter, r *http.Request, guildID string) {
-	if r.Method != http.MethodPost {
+	switch r.Method {
+	case http.MethodPost:
+		attrs := map[string]any{
+			"nsfw": false, "position": float64(0), "rate_limit_per_user": float64(0),
+			"bitrate": float64(0), "user_limit": float64(0),
+			"default_thread_rate_limit_per_user": float64(0),
+		}
+		for k, v := range decodeObject(r) {
+			attrs[k] = v
+		}
+		id := m.id()
+		attrs["id"] = id
+		attrs["guild_id"] = guildID
+		m.channels[id] = attrs
+		writeJSON(w, http.StatusOK, attrs)
+	case http.MethodGet:
+		out := make([]map[string]any, 0, len(m.channels))
+		for _, a := range m.channels {
+			out = append(out, a)
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodPatch:
+		// modify-channel-positions: a [{id, position}] array, answered 204.
+		for _, entry := range decodeArray(r) {
+			e, ok := entry.(map[string]any)
+			if !ok {
+				continue
+			}
+			if id, _ := e["id"].(string); id != "" {
+				if a, ok := m.channels[id]; ok {
+					a["position"] = e["position"]
+				}
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
 		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
-		return
 	}
-	attrs := map[string]any{
-		"nsfw": false, "position": float64(0), "rate_limit_per_user": float64(0),
-		"bitrate": float64(0), "user_limit": float64(0),
-		"default_thread_rate_limit_per_user": float64(0),
-	}
-	for k, v := range decodeObject(r) {
-		attrs[k] = v
-	}
-	id := m.id()
-	attrs["id"] = id
-	attrs["guild_id"] = guildID
-	m.channels[id] = attrs
-	writeJSON(w, http.StatusOK, attrs)
 }
 
 func (m *mockDiscord) serveChannelItem(w http.ResponseWriter, r *http.Request, id string) {
@@ -426,6 +498,40 @@ func (m *mockDiscord) serveChannelItem(w http.ResponseWriter, r *http.Request, i
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// captureAttr records a state attribute's value into dst so a later step can
+// assert against it. Server-assigned snowflakes are only knowable at runtime, so
+// "this id did not change" cannot be written as a literal.
+func captureAttr(rn, key string, dst *string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[rn]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", rn)
+		}
+		v, ok := rs.Primary.Attributes[key]
+		if !ok || v == "" {
+			return fmt.Errorf("attribute %s is not set on %s", key, rn)
+		}
+		*dst = v
+		return nil
+	}
+}
+
+// checkAttrEquals asserts an attribute still equals a value captured earlier.
+// resource.TestCheckResourceAttrPtr dereferences at construction time, which is
+// before the capturing step has run, so it cannot express this.
+func checkAttrEquals(rn, key string, want *string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[rn]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", rn)
+		}
+		if got := rs.Primary.Attributes[key]; got != *want {
+			return fmt.Errorf("%s = %q, want the previously assigned %q", key, got, *want)
+		}
+		return nil
 	}
 }
 
