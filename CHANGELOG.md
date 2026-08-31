@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.5.0...v0.6.0) (2026-07-26)
+
+
+### Features
+
+* route questions, ideas and possible bugs to the Discord forum ([6c2a2cc](https://github.com/kirchDev/terraform-provider-discord/commit/6c2a2cc7311dfd5f90ebd8115d12ad5b9e7e9fec))
+
+
+### Bug Fixes
+
+* align issue-template labels with the label catalog ([9125b0d](https://github.com/kirchDev/terraform-provider-discord/commit/9125b0d08b7e10cc959a083fd5f9471086245405))
+
+## [0.5.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.4.0...v0.5.0) (2026-06-26)
+
+
+### Features
+
+* add discord_message resource ([de68540](https://github.com/kirchDev/terraform-provider-discord/commit/de68540be4245acf8cc73f4c6443ac2ce2623719))
+
 ## [0.4.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.3.2...v0.4.0) (2026-06-26)
 
 
