@@ -1,30 +1,130 @@
-node_modules
+# region gitignore-sync
+# stacks: core, git, node, go, dotenv, vscode, intellij, macos, windows, linux, tofu, agents
+# ─────────────────────────────────────────
+
+# region core@v1
 .DS_Store
-.idea
-.vscode
+# endregion
+
+# region git@v1
+*.orig
+*.rej
+*.BACKUP.*
+*.BASE.*
+*.LOCAL.*
+*.REMOTE.*
+*_BACKUP_*.txt
+*_BASE_*.txt
+*_LOCAL_*.txt
+*_REMOTE_*.txt
+# endregion
+
+# region node@v1
+node_modules
+dist
+coverage
+/logs
+*.log
+*.tsbuildinfo
+.eslintcache
+.npm
+*.tgz
+# endregion
+
+# region go@v1
+*.exe
+*.test
+*.out
+*.prof
+# endregion
+
+# region dotenv@v1
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.testing
+# endregion
+
+# region vscode@v1
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/mcp.json
+# endregion
+
+# region intellij@v1
+.idea/*
+# endregion
+
+# region macos@v1
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+*.icloud
+# endregion
+
+# region windows@v1
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.stackdump
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+# endregion
+
+# region linux@v1
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+# endregion
+
+# region tofu@v1
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+.terraformrc
+terraform.rc
+crash.log
+crash.*.log
+# endregion
+
+# region agents@v1
+.claude/settings.local.json
+.claude/worktrees/
+# endregion
+
+# endregion
 
 # Go
 /terraform-provider-discord
 /dist/
-*.test
-*.out
-
-# OpenTofu / Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-crash.log
-crash.*.log
-
-# Local provider dev overrides
-.terraformrc
-terraform.rc
-
-# Local secrets / live-test credentials
-.env
-.env.*
 
 # AI scratch notes (scoping/handoff, not shipped)
 temp_ai.md
 session.md
-.claude/settings.local.json
