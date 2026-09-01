@@ -1,5 +1,8 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 
+# The Terraform Registry reads this repo's tags, and GoReleaser uploads the
+# signed artifacts onto the release release-please cuts.
+
 name: Release Please
 
 on:
@@ -7,88 +10,24 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-  pull-requests: write
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   release-please:
-    name: Run release-please
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - name: Fetch Release App PEM from Bitwarden
-        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
-        with:
-          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
-          cloud_region: eu
-          secrets: |
-            3a3459f0-c986-4ff3-a36b-b4550012d41e > KIRCHDEV_RELEASE_APP_PEM
+    name: Release Please
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: kirchDev/workflows/.github/workflows/_release-please.yml@f81bbe5fb5e8055b55a1ef5f861cc63a8e253622 # v0.1.3
+    secrets:
+      BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
 
-      - name: Mint Release App token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: 'Iv23li3hNqtsZ8fDlwqH'
-          private-key: ${{ env.KIRCHDEV_RELEASE_APP_PEM }}
-
-      - id: release
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-
-  # When release-please cuts a release, build the provider, GPG-sign the
-  # checksums, and attach the artifacts to the release it just created (goreleaser
-  # `release.mode: append`). The signed zips + SHA256SUMS + .sig + manifest are
-  # what the OpenTofu/Terraform registry consumes.
   goreleaser:
-    name: Build and sign provider artifacts
+    name: GoReleaser
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
-
-      - uses: actions/setup-go@v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      # GPG signing key + passphrase live in Bitwarden SM (project: infrastructure),
-      # same flow as the Release App PEM above.
-      - name: Fetch GPG signing secrets from Bitwarden
-        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
-        with:
-          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
-          cloud_region: eu
-          secrets: |
-            9112a29e-4a70-4c88-a6a7-b462014541e4 > GPG_PRIVATE_KEY
-            aa38c7e5-6d49-4204-a42b-b4620144bcc9 > GPG_PASSPHRASE
-
-      - name: Import GPG key
-        id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
-        with:
-          gpg_private_key: ${{ env.GPG_PRIVATE_KEY }}
-          passphrase: ${{ env.GPG_PASSPHRASE }}
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
-        with:
-          version: '~> v2'
-          args: release --clean
-        env:
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    if: needs.release-please.outputs.release-created == 'true'
+    permissions:
+      contents: write
+    uses: kirchDev/workflows/.github/workflows/_publish-goreleaser.yml@f81bbe5fb5e8055b55a1ef5f861cc63a8e253622 # v0.1.3
+    with:
+      tag-name: ${{ needs.release-please.outputs.tag-name }}
+    secrets:
+      BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
