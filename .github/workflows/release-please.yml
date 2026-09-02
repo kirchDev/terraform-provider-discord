@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: kirchDev/workflows/.github/workflows/_release-please.yml@f81bbe5fb5e8055b55a1ef5f861cc63a8e253622 # v0.1.3
+    uses: kirchDev/workflows/.github/workflows/_release-please.yml@bec834b87a96c8c1dbf2c7cb28f774e9173e32d7 # v0.2.0
     secrets:
       BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
 
@@ -26,7 +26,7 @@ jobs:
     if: needs.release-please.outputs.release-created == 'true'
     permissions:
       contents: write
-    uses: kirchDev/workflows/.github/workflows/_publish-goreleaser.yml@f81bbe5fb5e8055b55a1ef5f861cc63a8e253622 # v0.1.3
+    uses: kirchDev/workflows/.github/workflows/_publish-goreleaser.yml@bec834b87a96c8c1dbf2c7cb28f774e9173e32d7 # v0.2.0
     with:
       tag-name: ${{ needs.release-please.outputs.tag-name }}
     secrets:

@@ -20,6 +20,6 @@ jobs:
       packages: read
       actions: read
       contents: read
-    uses: kirchDev/workflows/.github/workflows/_codeql.yml@f81bbe5fb5e8055b55a1ef5f861cc63a8e253622 # v0.1.3
+    uses: kirchDev/workflows/.github/workflows/_codeql.yml@bec834b87a96c8c1dbf2c7cb28f774e9173e32d7 # v0.2.0
     with:
       languages: '["actions", "go", "javascript-typescript"]'

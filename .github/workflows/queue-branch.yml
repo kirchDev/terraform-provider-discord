@@ -16,6 +16,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: kirchDev/workflows/.github/workflows/_queue-branch.yml@f81bbe5fb5e8055b55a1ef5f861cc63a8e253622 # v0.1.3
+    uses: kirchDev/workflows/.github/workflows/_queue-branch.yml@bec834b87a96c8c1dbf2c7cb28f774e9173e32d7 # v0.2.0
     secrets:
       BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
