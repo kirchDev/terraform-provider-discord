@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.8.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.7.0...v0.8.0) (2026-09-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* move to pnpm 12
+* this repository now requires pnpm 12.
+
+### Features
+
+* **ci:** call the central workflow bodies instead of copying them ([fe9724a](https://github.com/kirchDev/terraform-provider-discord/commit/fe9724a33be6f2b7f987e1cae74e6a2934aba679))
+
+
+### Bug Fixes
+
+* **ci:** pin the workflow bodies to v0.2.0 and drop paths-ignore ([8641e03](https://github.com/kirchDev/terraform-provider-discord/commit/8641e03bb58a1e7c28b41a4bdc328390538ab581))
+* **ci:** pin the workflow bodies to v0.5.0 ([fdedb12](https://github.com/kirchDev/terraform-provider-discord/commit/fdedb12b2f8950677691d98a0807bfbd635f4b07))
+* **ci:** pin the workflow bodies to v0.7.0 ([5878f62](https://github.com/kirchDev/terraform-provider-discord/commit/5878f6239df27c6bed709f835b12813ffb9ae714))
+
+
+### Reverts
+
+* go back to pnpm 11.25.0 ([a4909d1](https://github.com/kirchDev/terraform-provider-discord/commit/a4909d16f0b5ca4fd579c7c5de99048c90bbfd46))
+
+
+### Miscellaneous Chores
+
+* move to pnpm 12 ([e857ec8](https://github.com/kirchDev/terraform-provider-discord/commit/e857ec8c9a813c05a9ff4f27d851429dd8c6c269))
+* move to pnpm 12 ([cd5e1a7](https://github.com/kirchDev/terraform-provider-discord/commit/cd5e1a7b009fcd3ddff567bebfabf2551bc6c33a))
+
 ## [0.7.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.6.0...v0.7.0) (2026-08-31)
 
 
