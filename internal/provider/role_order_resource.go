@@ -207,7 +207,7 @@ func (r *roleOrderResource) explainOrder(ctx context.Context, guildID string, ro
 	}
 	var mismatch *orderMismatchError
 	if errors.As(err, &mismatch) {
-		return fmt.Errorf("Discord did not apply the order that was written: %s did not end up below %s — "+
+		return fmt.Errorf("the order that was written was not applied by Discord: %s did not end up below %s — "+
 			"re-run the apply to read the hierarchy back and try again",
 			r.describeRole(ctx, guildID, roles, mismatch.ID), r.describeRole(ctx, guildID, roles, mismatch.Above))
 	}
