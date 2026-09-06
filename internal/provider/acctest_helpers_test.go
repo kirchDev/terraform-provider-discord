@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,6 +96,20 @@ func (m *mockDiscord) seedRole(id, name string, position int64, managed bool) {
 	}
 }
 
+// mockAppUserID is the user id GET /users/@me answers with — the app the provider
+// is authenticated as. A role carrying it in tags.bot_id is that app's own role.
+const mockAppUserID = "800000000000000001"
+
+// seedBotRole plants the app's own role: integration-managed like any bot role,
+// and tagged with the app's user id so the provider can tell it from another
+// integration's role when it has to name one in an error.
+func (m *mockDiscord) seedBotRole(id, name string, position int64) {
+	m.seedRole(id, name, position, true)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.roles[id]["tags"] = map[string]any{"bot_id": mockAppUserID}
+}
+
 // seedChannel plants a channel with a fixed id, parent and position — the channel
 // analogue of seedRole.
 func (m *mockDiscord) seedChannel(id, guildID, name, parentID string, position int64) {
@@ -123,6 +138,54 @@ func (m *mockDiscord) channelPositions() map[string]int64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return positionsOf(m.channels)
+}
+
+// resortRoles replays what Discord does to a role hierarchy once a
+// modify-role-positions body has been applied: the roles named in the body hold
+// exactly the positions they were given, and a role that was *not* named but
+// stands on one of them is bumped to the next position nothing holds — cascading
+// upwards, since a role only ever makes room above itself. Positions the body
+// never touches are left alone, so a gap in the hierarchy survives a write that
+// does not reach it. This is the renumbering that lets a freshly created role be
+// placed in a hierarchy with no free slot below the app's own role: writing over
+// the app role's position pushes it up rather than colliding with it.
+//
+// Written independently of the provider's own replay (order_common.go) on
+// purpose — a shared implementation could only ever agree with itself.
+func resortRoles(current map[string]int64, writes map[string]int64) map[string]int64 {
+	out := make(map[string]int64, len(current))
+	held := map[int64]bool{}
+	var unwritten []string
+	for id := range current {
+		if pos, ok := writes[id]; ok {
+			out[id] = pos
+			held[pos] = true
+			continue
+		}
+		unwritten = append(unwritten, id)
+	}
+	// Lowest first so a bumped role lands in the gap above it rather than over a
+	// sibling that has not been placed yet; two roles sharing a position are
+	// ranked younger-id-lower, the way Discord itself ranks them.
+	sort.Slice(unwritten, func(i, j int) bool {
+		a, b := unwritten[i], unwritten[j]
+		if current[a] != current[b] {
+			return current[a] < current[b]
+		}
+		if len(a) != len(b) {
+			return len(a) > len(b)
+		}
+		return a > b
+	})
+	for _, id := range unwritten {
+		pos := current[id]
+		for held[pos] {
+			pos++
+		}
+		held[pos] = true
+		out[id] = pos
+	}
+	return out
 }
 
 func positionsOf(objects map[string]map[string]any) map[string]int64 {
@@ -160,6 +223,8 @@ func (m *mockDiscord) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.serveOnboarding(w, r, segs[1])
 	case len(segs) == 4 && segs[0] == "channels" && segs[2] == "permissions":
 		m.serveChannelPermission(w, r, segs[1], segs[3])
+	case len(segs) == 2 && segs[0] == "users" && segs[1] == "@me":
+		writeJSON(w, http.StatusOK, map[string]any{"id": mockAppUserID, "username": "mock-app", "bot": true})
 	case len(segs) == 2 && segs[0] == "channels":
 		m.serveChannelItem(w, r, segs[1])
 	default:
@@ -396,17 +461,32 @@ func (m *mockDiscord) serveRolesCollection(w http.ResponseWriter, r *http.Reques
 		}
 		writeJSON(w, http.StatusOK, out)
 	case http.MethodPatch:
-		// modify-role-positions: a [{id, position}] array. Apply and echo the list.
+		// modify-role-positions: a [{id, position}] array.
+		writes := map[string]int64{}
 		for _, entry := range decodeArray(r) {
 			e, ok := entry.(map[string]any)
 			if !ok {
 				continue
 			}
-			if id, _ := e["id"].(string); id != "" {
-				if a, ok := m.roles[id]; ok {
-					a["position"] = e["position"]
-				}
+			id, _ := e["id"].(string)
+			if id == "" {
+				continue
 			}
+			a, ok := m.roles[id]
+			if !ok {
+				continue
+			}
+			// An integration-managed role cannot be moved by anyone, and Discord
+			// answers the whole request with a bare 50013 rather than skipping it.
+			if managed, _ := a["managed"].(bool); managed {
+				http.Error(w, `{"message":"Missing Permissions","code":50013}`, http.StatusForbidden)
+				return
+			}
+			pos, _ := e["position"].(float64)
+			writes[id] = int64(pos)
+		}
+		for id, pos := range resortRoles(positionsOf(m.roles), writes) {
+			m.roles[id]["position"] = float64(pos)
 		}
 		out := make([]map[string]any, 0, len(m.roles))
 		for _, a := range m.roles {
