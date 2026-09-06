@@ -26,6 +26,7 @@ const (
 	roleOrderDenseAdmins  = "900000000000000430"
 	roleOrderDenseBot     = "900000000000000440"
 	roleOrderDenseFresh   = "900000000000000450"
+	roleOrderDenseBooster = "900000000000000460"
 )
 
 // TestAccRoleOrderResource_subsetWithForeignRole orders a strict subset of the
@@ -98,21 +99,28 @@ resource "discord_role_order" "test" {
 	})
 }
 
-// TestAccRoleOrderResource_refusesToCrossAnUnlistedRole is the role side of the
-// shortfall: Discord creates every new role at position 1, so adding one role to a
-// managed order leaves two listed roles sharing a slot and the set needs one more
-// position than it holds. In a dense hierarchy the only free position is above
-// every occupied one — including the app-owned bot role, which is `managed` and so
-// unlisted by construction. Writing there makes Discord reject the whole PATCH
-// with the bare 50013 this resource exists to make legible, so the resource
-// refuses instead, naming the role that closes the range, and writes nothing.
-func TestAccRoleOrderResource_refusesToCrossAnUnlistedRole(t *testing.T) {
+// TestAccRoleOrderResource_placesAFreshRoleInADenseHierarchy is the case the
+// resource used to refuse. Discord creates every new role on position 1 without
+// renumbering anything, so adding one role to a managed order leaves two listed
+// roles sharing a slot and the set needs one more position than it holds. In a
+// dense hierarchy there is no free position below the app's own role — which is
+// `managed`, so unlisted by construction — and topping the shortfall up from
+// below is impossible.
+//
+// The way out is the one an operator reaches for by hand: dragging the new role
+// in the Discord UI makes Discord renumber, and a position appears. The resource
+// now plans that renumbering itself — it writes the listed roles over the whole
+// dense range, including the position the app role stands on, and Discord's own
+// re-sort bumps the app role up. What is relaxed is that role's *absolute*
+// position; its place relative to every listed role is unchanged, which the
+// resource checks before the write and against the read-back after it.
+func TestAccRoleOrderResource_placesAFreshRoleInADenseHierarchy(t *testing.T) {
 	m := newMockDiscord(t)
 	m.seedRole(roleOrderDenseGuildID, "@everyone", 0, false)
 	m.seedRole(roleOrderDenseMembers, "Members", 1, false)
 	m.seedRole(roleOrderDenseMods, "Mods", 2, false)
 	m.seedRole(roleOrderDenseAdmins, "Admins", 3, false)
-	m.seedRole(roleOrderDenseBot, "kirchbot", 4, true)
+	m.seedBotRole(roleOrderDenseBot, "kirchbot", 4)
 	// Freshly created, so Discord put it on position 1 beside Members.
 	m.seedRole(roleOrderDenseFresh, "Helpers", 1, false)
 
@@ -127,8 +135,52 @@ resource "discord_role_order" "test" {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{{
+			Config: cfg,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				checkOrder(m.rolePositions, true,
+					roleOrderDenseAdmins, roleOrderDenseMods, roleOrderDenseFresh, roleOrderDenseMembers),
+				checkAtSlot(m.rolePositions, roleOrderDenseMembers, 1),
+				checkAtSlot(m.rolePositions, roleOrderDenseFresh, 2),
+				checkAtSlot(m.rolePositions, roleOrderDenseMods, 3),
+				checkAtSlot(m.rolePositions, roleOrderDenseAdmins, 4),
+				// The app role was never in the body — Discord's re-sort moved it,
+				// and it is still above every listed role.
+				checkAtSlot(m.rolePositions, roleOrderDenseBot, 5),
+				checkNoSharedSlot(m.rolePositions),
+			),
+		}},
+	})
+}
+
+// TestAccRoleOrderResource_refusesToCrossAnUnlistedRole is the case renumbering
+// cannot rescue: an unlisted, integration-managed role stands *between* two
+// listed ones, and the configured order asks those two to swap sides around it.
+// No layout satisfies that while leaving the unlisted role where it stands
+// relative to both, so the resource says so, naming it, and writes nothing —
+// relaxing an unlisted role's absolute position is allowed, changing its relative
+// one never is.
+func TestAccRoleOrderResource_refusesToCrossAnUnlistedRole(t *testing.T) {
+	m := newMockDiscord(t)
+	m.seedRole(roleOrderDenseGuildID, "@everyone", 0, false)
+	m.seedRole(roleOrderDenseMembers, "Members", 1, false)
+	m.seedRole(roleOrderDenseFresh, "Helpers", 1, false)
+	m.seedRole(roleOrderDenseBooster, "Server Booster", 2, true)
+	m.seedRole(roleOrderDenseAdmins, "Admins", 3, false)
+	m.seedBotRole(roleOrderDenseBot, "kirchbot", 4)
+
+	cfg := fmt.Sprintf(`
+resource "discord_role_order" "test" {
+  server_id = %q
+  role_ids  = [%q, %q, %q]
+}
+`, roleOrderDenseGuildID,
+		roleOrderDenseMembers, roleOrderDenseAdmins, roleOrderDenseFresh)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{{
 			Config:      cfg,
-			ExpectError: regexp.MustCompile(`(?s)kirchbot.*only\s+3\s+are\s+free`),
+			ExpectError: regexp.MustCompile(`(?s)Server Booster.*managed by an integration`),
 		}},
 	})
 
@@ -137,10 +189,10 @@ resource "discord_role_order" "test" {
 	seeded := map[string]int64{
 		roleOrderDenseGuildID: 0,
 		roleOrderDenseMembers: 1,
-		roleOrderDenseMods:    2,
+		roleOrderDenseFresh:   1,
+		roleOrderDenseBooster: 2,
 		roleOrderDenseAdmins:  3,
 		roleOrderDenseBot:     4,
-		roleOrderDenseFresh:   1,
 	}
 	live := m.rolePositions()
 	for id, want := range seeded {
