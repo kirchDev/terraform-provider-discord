@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -77,9 +78,13 @@ func (r *roleOrderResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"Discord's own re-sort. Its absolute position changes, its place **relative** to every listed role never " +
 			"does — checked before the write and against the hierarchy read back after it. Where even that cannot " +
 			"hold — an unlisted role stands between two listed ones the configured order asks to swap sides around " +
-			"— the apply fails naming that role and writes nothing. The bot can only reorder roles **below its own " +
-			"highest role**, and the `@everyone` role cannot be moved — do not list it. Leave per-role `position` " +
-			"unset and order here.",
+			"— the apply fails naming that role and writes nothing. The one role that is never renumbered out of the " +
+			"way is **the app's own**: Discord lets an app sort only roles below its own highest role, and only into " +
+			"positions below it, so the listed roles have to fit into the positions under that role. Where they do " +
+			"not, the apply says so and names it rather than writing a request Discord answers with a bare `50013` " +
+			"— free a position below it (moving a role in the Discord client makes Discord renumber the hierarchy). " +
+			"A hierarchy already in the configured order is left alone entirely, with no request sent. The " +
+			"`@everyone` role cannot be moved — do not list it. Leave per-role `position` unset and order here.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the guild.",
@@ -147,11 +152,21 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 	}
 	listed := listedSet(ids)
 	taken := occupiedPositions(positions, listed)
+	appID, appTop := r.appCeiling(ctx, roles)
+	// Two ceilings, bounding different things. crossingCeiling keeps the top-up
+	// from climbing over an unlisted sibling — a soft line the renumbering below is
+	// allowed to cross, since Discord's own re-sort moves that sibling out of the
+	// way. appTop is the hard one: Discord lets a user sort only roles lower than
+	// its own highest role, and only to positions below it, so a body reaching it
+	// is refused outright with a bare 50013 however it was computed. Only the soft
+	// line is relaxed for the renumbering; the hard one bounds both paths.
+	//
 	// @everyone sits at position 0 and cannot be moved, so real roles start at 1.
-	// The ceiling keeps the set from climbing over a role it does not manage: the
-	// app's own role is integration-managed, so it is never listed, and a write at
-	// or above it comes back as the bare 50013 this resource exists to replace.
-	body, err := orderPositions(ids, positions, taken, 1, crossingCeiling(ids, positions, taken), true)
+	ceiling := crossingCeiling(ids, positions, taken)
+	if appTop < ceiling {
+		ceiling = appTop
+	}
+	body, err := orderPositions(ids, positions, taken, 1, ceiling, true)
 	renumbered := false
 	if err != nil {
 		var room *orderRoomError
@@ -166,11 +181,18 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 		// the whole range they occupy, positions unlisted siblings stand on
 		// included, and let Discord's re-sort bump those siblings up. Their absolute
 		// positions move; where they stand relative to the listed roles does not.
-		body, err = planRenumber(ids, positions, listed, 1, true)
+		body, err = planRenumber(ids, positions, listed, 1, appTop, true)
 		if err != nil {
-			return r.explainOrder(ctx, guildID, roles, err, room)
+			return r.explainOrder(ctx, guildID, roles, err, room, appID, appTop)
 		}
 		renumbered = true
+	}
+	// Every listed role already holds the position the plan asks for, so there is
+	// nothing to sort. Discord refuses a request on what it would move, never on
+	// what it would leave alone, so skipping the no-op saves a request and removes
+	// the one occasion on which a correct hierarchy could still be refused.
+	if samePositions(body, positions) {
+		return nil
 	}
 	if err := r.client.Write(ctx, "PATCH", "/guilds/"+guildID+"/roles", body, nil); err != nil {
 		return err
@@ -189,15 +211,58 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 		after[id] = role.Position
 	}
 	if err := verifyOrder(ids, positions, after, listed, true); err != nil {
-		return r.explainOrder(ctx, guildID, live, err, nil)
+		return r.explainOrder(ctx, guildID, live, err, nil, appID, appTop)
 	}
 	return nil
 }
 
+// samePositions reports whether a computed body asks for exactly the positions the
+// roles already hold — the request that would change nothing.
+func samePositions(body []map[string]any, positions map[string]int64) bool {
+	for _, entry := range body {
+		id, _ := entry["id"].(string)
+		pos, _ := entry["position"].(int64)
+		if current, ok := positions[id]; !ok || current != pos {
+			return false
+		}
+	}
+	return true
+}
+
+// appCeiling is the first position this app may write nothing at or above, and the
+// role that sets it: its own highest role, found by tags.bot_id matching
+// GET /users/@me. Discord lets a user sort only roles lower than its highest role,
+// and only to positions below that role; either half is answered with a bare
+// 50013 for the whole request.
+//
+// Best effort by construction: where the app's role cannot be established — the
+// lookup fails, or no role carries the tag — the answer is noCeiling, which is the
+// arithmetic this resource did before the ceiling existed. A ceiling that cannot
+// be read is not a reason to refuse an order that may well be fine.
+func (r *roleOrderResource) appCeiling(ctx context.Context, roles map[string]rolePos) (string, int64) {
+	me, err := r.client.BotUserID(ctx)
+	if err != nil || me == "" {
+		return "", noCeiling
+	}
+	id, ceiling := "", int64(math.MinInt64)
+	for _, role := range roles {
+		if role.Tags.BotID != me || role.Position <= ceiling {
+			continue
+		}
+		id, ceiling = role.ID, role.Position
+	}
+	if id == "" {
+		return "", noCeiling
+	}
+	return id, ceiling
+}
+
 // explainOrder turns the position arithmetic's typed errors into a sentence in
 // this resource's own vocabulary, naming the roles a reader can see in the role
-// list. room, when set, is the shortfall the renumbering was reached for.
-func (r *roleOrderResource) explainOrder(ctx context.Context, guildID string, roles map[string]rolePos, err error, room *orderRoomError) error {
+// list. room, when set, is the shortfall the renumbering was reached for; appID
+// and appTop name the app's own role and the position it stands on, so a ceiling
+// that role sets is attributed to it rather than guessed from a shared position.
+func (r *roleOrderResource) explainOrder(ctx context.Context, guildID string, roles map[string]rolePos, err error, room *orderRoomError, appID string, appTop int64) error {
 	var cross *orderCrossError
 	if errors.As(err, &cross) {
 		return fmt.Errorf("cannot order the listed roles without moving %s past them — %s. "+
@@ -211,9 +276,23 @@ func (r *roleOrderResource) explainOrder(ctx context.Context, guildID string, ro
 			"re-run the apply to read the hierarchy back and try again",
 			r.describeRole(ctx, guildID, roles, mismatch.ID), r.describeRole(ctx, guildID, roles, mismatch.Above))
 	}
+	// The renumbering's own shortfall is the tighter of the two and the one a
+	// reader has to act on: it is measured against the hard ceiling, where the
+	// outer one was measured against the sibling the renumbering was about to move
+	// out of the way.
+	var planned *orderRoomError
+	if errors.As(err, &planned) {
+		room = planned
+	}
 	if room != nil {
-		return fmt.Errorf("cannot order the listed roles without moving %s, which is not listed: %s — %w",
-			r.describeRole(ctx, guildID, roles, roleIDAt(roles, room.Ceiling)), room, err)
+		id := roleIDAt(roles, room.Ceiling)
+		if room.Ceiling == appTop && appID != "" {
+			id = appID
+		}
+		return fmt.Errorf("cannot order the listed roles without moving %s: %s. "+
+			"Free a position below it — moving a role in the Discord client makes Discord renumber the "+
+			"hierarchy — or list fewer roles",
+			r.describeRole(ctx, guildID, roles, id), room)
 	}
 	return err
 }
