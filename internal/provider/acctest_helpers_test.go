@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -38,14 +39,18 @@ func testAccProtoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServ
 type mockDiscord struct {
 	url string
 
-	mu       sync.Mutex
-	nextID   int
-	roles    map[string]map[string]any // role id -> attrs
-	channels map[string]map[string]any // channel id -> attrs
-	guilds   map[string]map[string]any // guild id -> attrs
-	members  map[string]map[string]any // "guildID/userID" -> attrs
-	automod  map[string]map[string]any // rule id -> attrs
-	onboard  map[string]map[string]any // guild id -> onboarding object
+	mu     sync.Mutex
+	nextID int
+	// rolePatches counts modify-role-positions requests, so a test can assert that
+	// a hierarchy already in the configured order is left alone entirely rather
+	// than PATCHed with a body that happens to change nothing.
+	rolePatches int
+	roles       map[string]map[string]any // role id -> attrs
+	channels    map[string]map[string]any // channel id -> attrs
+	guilds      map[string]map[string]any // guild id -> attrs
+	members     map[string]map[string]any // "guildID/userID" -> attrs
+	automod     map[string]map[string]any // rule id -> attrs
+	onboard     map[string]map[string]any // guild id -> onboarding object
 }
 
 func newMockDiscord(t *testing.T) *mockDiscord {
@@ -131,6 +136,39 @@ func (m *mockDiscord) rolePositions() map[string]int64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return positionsOf(m.roles)
+}
+
+// rolePatchCount reads back how many modify-role-positions requests were made.
+func (m *mockDiscord) rolePatchCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.rolePatches
+}
+
+// appRoleCeiling is the first position the app may not write: the position of its
+// own highest role, the one tagged with its user id. Discord's rule is that "a
+// user can only sort roles lower than its highest role", so a position must be
+// strictly below this one. noCeiling where no app role is seeded — the mock then
+// has nothing to check against, which is how the role tests that predate the rule
+// keep their meaning.
+func (m *mockDiscord) appRoleCeiling() int64 {
+	ceiling := noCeiling
+	highest := int64(math.MinInt64)
+	for _, a := range m.roles {
+		tags, _ := a["tags"].(map[string]any)
+		if tags == nil {
+			continue
+		}
+		if botID, _ := tags["bot_id"].(string); botID != mockAppUserID {
+			continue
+		}
+		p, _ := a["position"].(float64)
+		if int64(p) > highest {
+			highest = int64(p)
+			ceiling = int64(p)
+		}
+	}
+	return ceiling
 }
 
 // channelPositions is the channel analogue of rolePositions.
@@ -462,6 +500,22 @@ func (m *mockDiscord) serveRolesCollection(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusOK, out)
 	case http.MethodPatch:
 		// modify-role-positions: a [{id, position}] array.
+		//
+		// Discord's hierarchy check, which this mock did not model until #55 — and
+		// whose absence is why the whole ordering family passed while the resource
+		// was reddening real applies. Discord's permissions reference states it in
+		// two halves: "a user can only sort roles lower than its highest role", and
+		// a role may only be moved to a position *below* that highest role's own
+		// position. Either half answers the whole request with a bare 50013, which
+		// is the error #55 reports, and neither is reached by a request that sorts
+		// nothing — hence "it succeeds only when nothing needs to move".
+		//
+		// Deliberately not modelled: what Discord does when its *own* re-sort
+		// displaces a role the app could not have written. Nothing in the reference
+		// forbids it, and the renumbering path depends on it, so the mock keeps the
+		// cascade legal and checks only what the request itself asks for.
+		m.rolePatches++
+		ceiling := m.appRoleCeiling()
 		writes := map[string]int64{}
 		for _, entry := range decodeArray(r) {
 			e, ok := entry.(map[string]any)
@@ -483,6 +537,14 @@ func (m *mockDiscord) serveRolesCollection(w http.ResponseWriter, r *http.Reques
 				return
 			}
 			pos, _ := e["position"].(float64)
+			at, _ := a["position"].(float64)
+			// The two halves of the hierarchy rule: the role being sorted has to sit
+			// below the app's own highest role, and so does the position it is being
+			// sorted to.
+			if int64(at) >= ceiling || int64(pos) >= ceiling {
+				http.Error(w, `{"message":"Missing Permissions","code":50013}`, http.StatusForbidden)
+				return
+			}
 			writes[id] = int64(pos)
 		}
 		for id, pos := range resortRoles(positionsOf(m.roles), writes) {

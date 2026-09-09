@@ -46,10 +46,12 @@ func (e *orderRoomError) Error() string {
 // positions where that leaves too few (freshly created items all share one). A
 // position held by an unlisted sibling is never used.
 //
-// The top-up stops below ceiling, so a shortfall is never made up by climbing over
-// a sibling the caller does not manage; where that leaves too few positions the
-// result is an *orderRoomError rather than a write the API will reject. Pass
-// noCeiling where climbing is harmless.
+// Nothing is drawn at or above ceiling — neither a topped-up slot nor one a listed
+// item already holds — so a shortfall is never made up by climbing over a sibling
+// the caller does not manage, and an item standing above the line is not written
+// back to where it stands. Where that leaves too few positions the result is an
+// *orderRoomError rather than a write the API will reject. Pass noCeiling where
+// climbing is harmless.
 //
 // With descending set the first id takes the highest slot (roles, where a higher
 // position sits higher in the hierarchy); otherwise it takes the lowest (channels,
@@ -60,7 +62,7 @@ func orderPositions(ids []string, current map[string]int64, taken map[int64]bool
 	claimed := map[int64]bool{}
 	for _, id := range ids {
 		pos, ok := current[id]
-		if !ok || pos < start || taken[pos] || claimed[pos] {
+		if !ok || pos < start || pos >= ceiling || taken[pos] || claimed[pos] {
 			continue
 		}
 		claimed[pos] = true
@@ -290,7 +292,14 @@ func crossedSibling(before, after map[string]int, listed map[string]bool) string
 // With descending set the first id takes the highest place (roles); otherwise the
 // lowest (channels). The plan is finally replayed through resortAfterWrite: a plan
 // whose replay is not the plan is never written.
-func planRenumber(ids []string, positions map[string]int64, listed map[string]bool, start int64, descending bool) ([]map[string]any, error) {
+//
+// ceiling is the one line the layout may not cross: no listed item is ever planned
+// at or above it. It is deliberately *not* the same bound orderPositions took —
+// writing over an unlisted sibling's position and letting the API's re-sort bump it
+// is the whole point of renumbering — but a caller whose API refuses a write past
+// some absolute line (for roles, the app's own highest role) has to say so, or the
+// plan comes back as that API's flat refusal. Pass noCeiling where none exists.
+func planRenumber(ids []string, positions map[string]int64, listed map[string]bool, start, ceiling int64, descending bool) ([]map[string]any, error) {
 	order := hierarchyOrder(positions)
 	before := ranksOf(order)
 	var slots []int
@@ -331,6 +340,22 @@ func planRenumber(ids []string, positions map[string]int64, listed map[string]bo
 		}
 		plan[id] = pos
 		next = pos + 1
+	}
+
+	// Laid out from the bottom, the plan is already the tightest one there is, so a
+	// listed item landing at or above the ceiling means the order does not fit
+	// under it at all — every position from start upwards is spoken for. Report the
+	// shortfall the caller can name a role for rather than writing a body the API
+	// answers flatly.
+	for _, id := range ids {
+		if plan[id] < ceiling {
+			continue
+		}
+		free := ceiling - start
+		if free < 0 {
+			free = 0
+		}
+		return nil, &orderRoomError{Need: len(ids), Free: int(free), Ceiling: ceiling}
 	}
 
 	writes := make(map[string]int64, len(ids))
