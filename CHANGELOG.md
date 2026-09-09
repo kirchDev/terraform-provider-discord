@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.8.0...v0.8.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* **order:** keep discord_role_order below the app's own role ([f80bf75](https://github.com/kirchDev/terraform-provider-discord/commit/f80bf75caf5ac223681b9e09b9cbccd35c763452)), closes [#55](https://github.com/kirchDev/terraform-provider-discord/issues/55)
+
 ## [0.8.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.7.0...v0.8.0) (2026-09-06)
 
 
