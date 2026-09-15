@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.9.0...v0.10.0) (2026-09-15)
+
+
+### Features
+
+* **forum:** manage the REQUIRE_TAG flag with require_tag ([c577ee8](https://github.com/kirchDev/terraform-provider-discord/commit/c577ee8224485a09fa8bc6a08e04500e4a684978)), closes [#59](https://github.com/kirchDev/terraform-provider-discord/issues/59)
+
 ## [0.9.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.8.1...v0.9.0) (2026-09-15)
 
 
