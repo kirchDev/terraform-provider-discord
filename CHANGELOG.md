@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.0...v0.10.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **forum:** write REQUIRE_TAG as 1 &lt;&lt; 4, not 1 &lt;&lt; 15 ([f3e0f44](https://github.com/kirchDev/terraform-provider-discord/commit/f3e0f44582c5b659449a8e679165239e82e07aac)), closes [#65](https://github.com/kirchDev/terraform-provider-discord/issues/65)
+
 ## [0.10.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.9.0...v0.10.0) (2026-09-15)
 
 
