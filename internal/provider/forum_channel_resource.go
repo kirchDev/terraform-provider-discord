@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -24,6 +25,10 @@ import (
 // reaction, sort order and layout. Threads (forum posts) are managed by the
 // discord_thread resource. Discord owns the tag ids; forum_tag_identity.go keeps
 // each one attached to its tag across applies. ---
+
+// forumChannelFlagRequireTag is the REQUIRE_TAG channel flag: a post created in
+// the forum must carry at least one tag.
+const forumChannelFlagRequireTag = 1 << 15
 
 var (
 	_ resource.Resource                = (*forumChannelResource)(nil)
@@ -86,6 +91,7 @@ type forumChannelWire struct {
 	DefaultReactionEmoji          *forumDefaultReactionWire `json:"default_reaction_emoji"`
 	AvailableTags                 []forumTagWire            `json:"available_tags"`
 	DefaultThreadRateLimitPerUser int64                     `json:"default_thread_rate_limit_per_user"`
+	Flags                         int64                     `json:"flags"`
 }
 
 type forumChannelResourceModel struct {
@@ -103,6 +109,7 @@ type forumChannelResourceModel struct {
 	AvailableTags                 types.List   `tfsdk:"available_tags"`
 	DefaultThreadRateLimitPerUser types.Int64  `tfsdk:"default_thread_rate_limit_per_user"`
 	SyncPermsWithCategory         types.Bool   `tfsdk:"sync_perms_with_category"`
+	RequireTag                    types.Bool   `tfsdk:"require_tag"`
 }
 
 func (r *forumChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -197,8 +204,28 @@ func (r *forumChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
+			"require_tag": schema.BoolAttribute{
+				MarkdownDescription: "Whether a post created in the forum must carry at least one tag (the " +
+					"`REQUIRE_TAG` channel flag). Only that bit of the channel's `flags` is written; every other " +
+					"flag is left as Discord has it. Omit it to leave the setting unmanaged — it is still read, so " +
+					"a toggle made by hand in the Discord client shows up as drift once you set it. While it is " +
+					"`true`, a `discord_forum_post` into this forum must set at least one entry in `tags`, or " +
+					"Discord rejects the create.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
 		},
 	}
+}
+
+// withRequireTag returns the live channel flags with the REQUIRE_TAG bit set or
+// cleared, every other bit untouched.
+func withRequireTag(live int64, on bool) int64 {
+	if on {
+		return live | forumChannelFlagRequireTag
+	}
+	return live &^ forumChannelFlagRequireTag
 }
 
 func (r *forumChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -288,6 +315,17 @@ func (r *forumChannelResource) Create(ctx context.Context, req resource.CreateRe
 	}
 	plan.ID = types.StringValue(created.ID)
 
+	// Discord's create-channel call takes no flags, so REQUIRE_TAG is set on the
+	// new channel with a follow-up PATCH, built from the flags it was created with.
+	if v := plan.RequireTag; !v.IsNull() && !v.IsUnknown() {
+		if want := withRequireTag(created.Flags, v.ValueBool()); want != created.Flags {
+			if err := r.client.Write(ctx, "PATCH", channelPath(created.ID), map[string]any{"flags": want}, nil); err != nil {
+				resp.Diagnostics.AddError("Unable to set require_tag on Discord forum channel", err.Error())
+				return
+			}
+		}
+	}
+
 	if plan.SyncPermsWithCategory.ValueBool() && !plan.Category.IsNull() {
 		if err := syncPermsWithCategory(ctx, r.client, created.ID, plan.Category.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Unable to sync channel permissions with category", err.Error())
@@ -331,6 +369,17 @@ func (r *forumChannelResource) Update(ctx context.Context, req resource.UpdateRe
 	if len(berr) > 0 {
 		resp.Diagnostics.AddError("Invalid forum channel configuration", berr[0].Error())
 		return
+	}
+	// flags is a whole bitfield: read the live value so only REQUIRE_TAG changes.
+	if v := plan.RequireTag; !v.IsNull() && !v.IsUnknown() {
+		var live forumChannelWire
+		if err := r.client.Get(ctx, channelPath(plan.ID.ValueString()), &live); err != nil {
+			resp.Diagnostics.AddError("Unable to read Discord forum channel flags", err.Error())
+			return
+		}
+		if want := withRequireTag(live.Flags, v.ValueBool()); want != live.Flags {
+			body["flags"] = want
+		}
 	}
 	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), body, nil); err != nil {
 		resp.Diagnostics.AddError("Unable to update Discord forum channel", err.Error())
@@ -386,6 +435,7 @@ func (r *forumChannelResource) readInto(ctx context.Context, m *forumChannelReso
 	}
 	m.DefaultForumLayout = types.Int64Value(a.DefaultForumLayout)
 	m.DefaultThreadRateLimitPerUser = types.Int64Value(a.DefaultThreadRateLimitPerUser)
+	m.RequireTag = types.BoolValue(a.Flags&forumChannelFlagRequireTag != 0)
 	if a.DefaultReactionEmoji != nil {
 		m.DefaultReactionEmojiID = types.StringPointerValue(a.DefaultReactionEmoji.EmojiID)
 		m.DefaultReactionEmojiNme = types.StringPointerValue(a.DefaultReactionEmoji.EmojiName)
