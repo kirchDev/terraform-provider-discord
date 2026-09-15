@@ -159,24 +159,32 @@ func planOptions(ctx context.Context, cfgList, priorList types.List) (types.List
 }
 
 // identityFields reads the three attributes matching needs off an element, so
-// prompts and options share one matcher.
+// prompts, options and forum tags share one matcher. `title` is whichever
+// attribute corroborates a positional match (a forum tag's `name`), `titled` the
+// word the refusal uses for it, and `stakes` what a misattached id would break.
 type identityFields[T any] struct {
-	noun           string
-	key, id, title func(T) types.String
+	noun, titled, stakes string
+	key, id, title       func(T) types.String
 }
 
+const onboardingStakes = "members' \"Channels & Roles\" selections hang on those ids"
+
 var promptFields = identityFields[onboardingPromptModel]{
-	noun:  "prompt",
-	key:   func(p onboardingPromptModel) types.String { return p.Key },
-	id:    func(p onboardingPromptModel) types.String { return p.ID },
-	title: func(p onboardingPromptModel) types.String { return p.Title },
+	noun:   "prompt",
+	titled: "titled",
+	stakes: onboardingStakes,
+	key:    func(p onboardingPromptModel) types.String { return p.Key },
+	id:     func(p onboardingPromptModel) types.String { return p.ID },
+	title:  func(p onboardingPromptModel) types.String { return p.Title },
 }
 
 var optionFields = identityFields[onboardingOptionModel]{
-	noun:  "option",
-	key:   func(o onboardingOptionModel) types.String { return o.Key },
-	id:    func(o onboardingOptionModel) types.String { return o.ID },
-	title: func(o onboardingOptionModel) types.String { return o.Title },
+	noun:   "option",
+	titled: "titled",
+	stakes: onboardingStakes,
+	key:    func(o onboardingOptionModel) types.String { return o.Key },
+	id:     func(o onboardingOptionModel) types.String { return o.ID },
+	title:  func(o onboardingOptionModel) types.String { return o.Title },
 }
 
 // matchPrior pairs each configured element with the prior element whose identity
@@ -232,10 +240,10 @@ func matchPrior[T any](cfg, prior []T, f identityFields[T]) ([]*T, diag.Diagnost
 				"Cannot tell which "+f.noun+" this is",
 				"The "+f.noun+" at index "+strconv.Itoa(i)+" carries no key from a previous apply, so the only "+
 					"thing left to identify it by is its position — and the "+f.noun+" that held that position is "+
-					"titled "+strconv.Quote(was)+", not "+strconv.Quote(now)+".\n\n"+
+					f.titled+" "+strconv.Quote(was)+", not "+strconv.Quote(now)+".\n\n"+
 					"That happens when keys are added in the same apply that reorders, inserts or renames "+
 					"something. Guessing here would attach the id Discord assigned to the wrong "+f.noun+", and "+
-					"members' \"Channels & Roles\" selections hang on those ids.\n\n"+
+					f.stakes+".\n\n"+
 					"Add the keys on their own first, leaving every "+f.noun+" where and as it is, and apply. "+
 					"Reordering, renaming and inserting are all safe once the keys are in state.",
 			)

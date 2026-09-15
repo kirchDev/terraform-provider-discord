@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -21,8 +22,8 @@ import (
 
 // --- Forum channel (#300): a GUILD_FORUM channel with managed tags, a default
 // reaction, sort order and layout. Threads (forum posts) are managed by the
-// discord_thread resource. Tags are managed declaratively by value; Discord owns
-// their ids, so a tag's id may change if the tag set is reshuffled. ---
+// discord_thread resource. Discord owns the tag ids; forum_tag_identity.go keeps
+// each one attached to its tag across applies. ---
 
 var (
 	_ resource.Resource                = (*forumChannelResource)(nil)
@@ -41,6 +42,7 @@ type forumChannelResource struct {
 
 // forumTagModel is one entry of available_tags in tfsdk form.
 type forumTagModel struct {
+	Key       types.String `tfsdk:"key"`
 	ID        types.String `tfsdk:"id"`
 	Name      types.String `tfsdk:"name"`
 	Moderated types.Bool   `tfsdk:"moderated"`
@@ -49,6 +51,7 @@ type forumTagModel struct {
 }
 
 var forumTagAttrTypes = map[string]attr.Type{
+	"key":        types.StringType,
 	"id":         types.StringType,
 	"name":       types.StringType,
 	"moderated":  types.BoolType,
@@ -109,7 +112,13 @@ func (r *forumChannelResource) Metadata(_ context.Context, req resource.Metadata
 func (r *forumChannelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a forum channel (`GUILD_FORUM`) in a Discord guild, including its tags, default " +
-			"reaction, sort order and layout.",
+			"reaction, sort order and layout.\n\n" +
+			"**Adding `key` to a forum whose tags predate it** — a configuration written before the attribute " +
+			"existed, or a forum you have just imported — keeps the tag ids Discord already assigned: nothing in " +
+			"state names a tag yet, so that one apply matches your new keys on by position. Add the keys on their " +
+			"own, leaving every tag where and as it is, and apply; make the other changes afterwards, when " +
+			"matching is on the keys alone and reordering, renaming and inserting are all safe. Move the list in " +
+			"that first apply and the plan fails rather than attaching an id to the wrong tag.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the guild.",
@@ -153,13 +162,22 @@ func (r *forumChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 			"default_reaction_emoji_id":   schema.StringAttribute{MarkdownDescription: "Snowflake ID of the default reaction emoji (custom emoji).", Optional: true},
 			"default_reaction_emoji_name": schema.StringAttribute{MarkdownDescription: "Unicode emoji used as the default reaction.", Optional: true},
 			"available_tags": schema.ListNestedAttribute{
-				MarkdownDescription: "Tags that can be applied to posts in the forum. Managed by value; Discord assigns the ids.",
+				MarkdownDescription: "Tags that can be applied to posts in the forum. Each tag carries a caller-chosen `key` that identifies it across applies.",
 				Optional:            true,
 				Computed:            true,
-				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				Validators:          []validator.List{uniqueNestedKey("tag")},
+				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown(), forumTagIdentity()},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":         schema.StringAttribute{MarkdownDescription: "Snowflake ID of the tag (assigned by Discord).", Computed: true},
+						"key": schema.StringAttribute{
+							MarkdownDescription: "Stable, caller-chosen key identifying this tag across applies. It is never sent " +
+								"to Discord — it is what lets the provider keep the id Discord assigned when the tag is renamed, " +
+								"re-emojied, toggled `moderated`, reordered, or has siblings inserted around it, so posts keep " +
+								"the tag. Changing a key retires that tag and creates a new one with a fresh id, which strips it " +
+								"from every post that carried it.",
+							Required: true,
+						},
+						"id":         schema.StringAttribute{MarkdownDescription: "Snowflake ID of the tag, assigned by Discord.", Computed: true},
 						"name":       schema.StringAttribute{MarkdownDescription: "Tag name.", Required: true},
 						"moderated":  schema.BoolAttribute{MarkdownDescription: "Whether only moderators can apply the tag.", Optional: true, Computed: true, Default: booldefault.StaticBool(false)},
 						"emoji_id":   schema.StringAttribute{MarkdownDescription: "Snowflake ID of the tag's custom emoji.", Optional: true},
@@ -376,9 +394,18 @@ func (r *forumChannelResource) readInto(ctx context.Context, m *forumChannelReso
 		m.DefaultReactionEmojiNme = types.StringNull()
 	}
 
+	// Read the keys out of the value being refreshed before overwriting it —
+	// Discord does not store them, so this is the only place they survive.
+	var diags diag.Diagnostics
+	prior := forumTagModelsFromList(ctx, m.AvailableTags, &diags)
+	if diags.HasError() {
+		return fmt.Errorf("reading the tag keys already in state")
+	}
+
 	tagModels := make([]forumTagModel, 0, len(a.AvailableTags))
-	for _, t := range a.AvailableTags {
+	for i, t := range a.AvailableTags {
 		tagModels = append(tagModels, forumTagModel{
+			Key:       forumTagKey(t.ID, i, prior),
 			ID:        types.StringValue(t.ID),
 			Name:      types.StringValue(t.Name),
 			Moderated: types.BoolValue(t.Moderated),

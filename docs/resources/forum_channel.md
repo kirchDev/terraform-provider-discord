@@ -4,15 +4,26 @@ page_title: "discord_forum_channel Resource - discord"
 subcategory: ""
 description: |-
   Manages a forum channel (GUILD_FORUM) in a Discord guild, including its tags, default reaction, sort order and layout.
+  Adding key to a forum whose tags predate it — a configuration written before the attribute existed, or a forum you have just imported — keeps the tag ids Discord already assigned: nothing in state names a tag yet, so that one apply matches your new keys on by position. Add the keys on their own, leaving every tag where and as it is, and apply; make the other changes afterwards, when matching is on the keys alone and reordering, renaming and inserting are all safe. Move the list in that first apply and the plan fails rather than attaching an id to the wrong tag.
 ---
 
 # discord_forum_channel (Resource)
 
 Manages a forum channel (`GUILD_FORUM`) in a Discord guild, including its tags, default reaction, sort order and layout.
 
+**Adding `key` to a forum whose tags predate it** — a configuration written before the attribute existed, or a forum you have just imported — keeps the tag ids Discord already assigned: nothing in state names a tag yet, so that one apply matches your new keys on by position. Add the keys on their own, leaving every tag where and as it is, and apply; make the other changes afterwards, when matching is on the keys alone and reordering, renaming and inserting are all safe. Move the list in that first apply and the plan fails rather than attaching an id to the wrong tag.
+
 ## Example Usage
 
 ```terraform
+# A forum with two tags.
+#
+# Every tag carries a `key` you choose. Discord never sees it: it is what lets
+# the provider keep the id Discord assigned when you rename a tag, change its
+# emoji, toggle `moderated`, reorder the list, or insert another tag above it —
+# so posts keep their tags. Pick keys you will not want to change — changing one
+# retires that tag and creates a new one with a fresh id, which strips it from
+# every post that carried it.
 resource "discord_forum_channel" "help" {
   server_id            = "123456789012345678"
   name                 = "help"
@@ -23,10 +34,12 @@ resource "discord_forum_channel" "help" {
 
   available_tags = [
     {
+      key       = "unresolved"
       name      = "Unresolved"
       moderated = false
     },
     {
+      key       = "resolved"
       name      = "Resolved"
       moderated = true
     },
@@ -44,7 +57,7 @@ resource "discord_forum_channel" "help" {
 
 ### Optional
 
-- `available_tags` (Attributes List) Tags that can be applied to posts in the forum. Managed by value; Discord assigns the ids. (see [below for nested schema](#nestedatt--available_tags))
+- `available_tags` (Attributes List) Tags that can be applied to posts in the forum. Each tag carries a caller-chosen `key` that identifies it across applies. (see [below for nested schema](#nestedatt--available_tags))
 - `category` (String) Snowflake ID of the parent category.
 - `default_forum_layout` (Number) Default layout (`0` not set, `1` list, `2` gallery).
 - `default_reaction_emoji_id` (String) Snowflake ID of the default reaction emoji (custom emoji).
@@ -65,6 +78,7 @@ resource "discord_forum_channel" "help" {
 
 Required:
 
+- `key` (String) Stable, caller-chosen key identifying this tag across applies. It is never sent to Discord — it is what lets the provider keep the id Discord assigned when the tag is renamed, re-emojied, toggled `moderated`, reordered, or has siblings inserted around it, so posts keep the tag. Changing a key retires that tag and creates a new one with a fresh id, which strips it from every post that carried it.
 - `name` (String) Tag name.
 
 Optional:
@@ -75,4 +89,4 @@ Optional:
 
 Read-Only:
 
-- `id` (String) Snowflake ID of the tag (assigned by Discord).
+- `id` (String) Snowflake ID of the tag, assigned by Discord.

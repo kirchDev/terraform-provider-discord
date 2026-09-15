@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -44,6 +46,7 @@ type inviteResourceModel struct {
 	Unique    types.Bool   `tfsdk:"unique"`
 	Code      types.String `tfsdk:"code"`
 	URL       types.String `tfsdk:"url"`
+	RoleIDs   types.Set    `tfsdk:"role_ids"`
 }
 
 func (r *inviteResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -82,6 +85,18 @@ func (r *inviteResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "Whether to always create a new unique invite rather than reusing a similar one.",
 				Optional:            true,
 				PlanModifiers:       []planmodifier.Bool{boolplanmodifier.RequiresReplace()},
+			},
+			"role_ids": schema.SetAttribute{
+				MarkdownDescription: "Snowflake IDs of roles granted automatically to a user who joins through this invite. " +
+					"The bot needs **Manage Roles**, and every role must sit **below the app's own highest role** and not be " +
+					"managed by an integration — a role that is not is refused before the invite is created, naming it. " +
+					"Roles are granted **on join only** (existing members get nothing), and a granted role **stays** after " +
+					"the invite expires or is deleted. Refreshed from the invite's `roles` on read, so a change made outside " +
+					"Terraform shows as drift; should Discord omit `roles` from the invite, the configured value is kept and " +
+					"drift is not detected. Changing the set creates a new invite.",
+				ElementType:   types.StringType,
+				Optional:      true,
+				PlanModifiers: []planmodifier.Set{setplanmodifier.RequiresReplace()},
 			},
 			"code": schema.StringAttribute{
 				MarkdownDescription: "The invite code.",
@@ -129,6 +144,18 @@ func (r *inviteResource) Create(ctx context.Context, req resource.CreateRequest,
 	if v := plan.Unique; !v.IsNull() && !v.IsUnknown() {
 		body["unique"] = v.ValueBool()
 	}
+	roleIDs, _, err := strSet(ctx, plan.RoleIDs)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to read role_ids", err.Error())
+		return
+	}
+	if len(roleIDs) > 0 {
+		if err := r.checkGrantable(ctx, plan.ChannelID.ValueString(), roleIDs); err != nil {
+			resp.Diagnostics.AddError("Unable to create Discord invite", err.Error())
+			return
+		}
+		body["role_ids"] = roleIDs
+	}
 
 	// The create response includes the invite metadata (max_age/max_uses/
 	// temporary); GET /invites/{code} does not, so capture them here.
@@ -139,7 +166,7 @@ func (r *inviteResource) Create(ctx context.Context, req resource.CreateRequest,
 		Temporary bool   `json:"temporary"`
 	}
 	if err := r.client.Write(ctx, "POST", "/channels/"+plan.ChannelID.ValueString()+"/invites", body, &inv); err != nil {
-		resp.Diagnostics.AddError("Unable to create Discord invite", err.Error())
+		resp.Diagnostics.AddError("Unable to create Discord invite", explainInviteError(err, len(roleIDs) > 0).Error())
 		return
 	}
 	plan.Code = types.StringValue(inv.Code)
@@ -198,8 +225,67 @@ func (r *inviteResource) ImportState(ctx context.Context, req resource.ImportSta
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("code"), req.ID)...)
 }
 
+// checkGrantable refuses, before the write, a role the app could not grant — the
+// same rules discord_role_order checks, since Discord answers either with a bare
+// 50013 for the whole request. Best effort, like appCeiling: where the channel's
+// guild or its roles cannot be read, it answers nil and the invite is sent anyway;
+// where the app's own role cannot be found, only the hierarchy half is skipped.
+func (r *inviteResource) checkGrantable(ctx context.Context, channelID string, roleIDs []string) error {
+	roles := r.channelGuildRoles(ctx, channelID)
+	if roles == nil {
+		return nil
+	}
+	appID, appTop := appCeiling(ctx, r.client, roles)
+	for _, id := range roleIDs {
+		role, ok := roles[id]
+		switch {
+		case !ok:
+			return fmt.Errorf("no role %s in this server — role_ids may only list roles that exist", id)
+		case id == appID:
+			return fmt.Errorf("role %q (%s) is this app's own highest role, which it cannot grant — remove it from role_ids", role.Name, id)
+		case appID != "" && role.Position >= appTop:
+			return fmt.Errorf("role %q (%s) does not sit below %q (%s), this app's highest role — Discord only lets the app "+
+				"grant roles below it. Move the role below it or remove it from role_ids", role.Name, id, roles[appID].Name, appID)
+		case role.Managed:
+			return fmt.Errorf("role %q (%s) is managed by an integration and cannot be granted — remove it from role_ids", role.Name, id)
+		}
+	}
+	return nil
+}
+
+// channelGuildRoles loads the roles of the guild a channel belongs to, or nil
+// where either read fails — the lookup is best effort, so a failure is not an
+// error for checkGrantable to return but the absence of anything to check.
+func (r *inviteResource) channelGuildRoles(ctx context.Context, channelID string) map[string]rolePos {
+	var ch struct {
+		GuildID string `json:"guild_id"`
+	}
+	if err := r.client.Get(ctx, "/channels/"+channelID, &ch); err != nil || ch.GuildID == "" {
+		return nil
+	}
+	roles, err := guildRoles(ctx, r.client, ch.GuildID)
+	if err != nil {
+		return nil
+	}
+	return roles
+}
+
+// explainInviteError reports Discord's 50013 "Missing Permissions" as the
+// permissions creating this invite needs, rather than as a bare API error.
+func explainInviteError(err error, withRoles bool) error {
+	var apiErr *client.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != 50013 {
+		return err
+	}
+	if withRoles {
+		return fmt.Errorf("missing Manage Roles / Create Instant Invite: the bot needs both permissions, and every role in "+
+			"role_ids must sit below its own highest role and not be managed by an integration (%w)", err)
+	}
+	return fmt.Errorf("missing Create Instant Invite: the bot lacks the permission on this channel (%w)", err)
+}
+
 // readInto GETs the invite by code to confirm it still exists and refresh the
-// channel id and URL. It deliberately does NOT touch max_age/max_uses/temporary:
+// channel id, URL and granted roles. It deliberately does NOT touch max_age/max_uses/temporary:
 // GET /invites/{code} omits those metadata fields (they're only returned by the
 // channel/guild invite listing), and invites are immutable, so the create-time
 // values in state are authoritative.
@@ -209,11 +295,33 @@ func (r *inviteResource) readInto(ctx context.Context, m *inviteResourceModel) e
 		Channel struct {
 			ID string `json:"id"`
 		} `json:"channel"`
+		// Partial role objects. A pointer, so a response without the field keeps
+		// the create-time value in state rather than clearing it.
+		Roles *[]struct {
+			ID string `json:"id"`
+		} `json:"roles"`
 	}
 	if err := r.client.Get(ctx, "/invites/"+m.Code.ValueString(), &inv); err != nil {
 		return err
 	}
 	m.ChannelID = types.StringValue(inv.Channel.ID)
 	m.URL = types.StringValue("https://discord.gg/" + inv.Code)
+	if inv.Roles == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(*inv.Roles))
+	for _, role := range *inv.Roles {
+		ids = append(ids, role.ID)
+	}
+	// An invite granting nothing answers an empty array; keep an unset role_ids
+	// unset instead of planning a diff against an empty set.
+	if len(ids) == 0 && (m.RoleIDs.IsNull() || len(m.RoleIDs.Elements()) == 0) {
+		return nil
+	}
+	set, failed := setOfStrings(ctx, ids)
+	if failed {
+		return fmt.Errorf("converting role_ids")
+	}
+	m.RoleIDs = set
 	return nil
 }

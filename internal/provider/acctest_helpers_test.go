@@ -51,6 +51,13 @@ type mockDiscord struct {
 	members     map[string]map[string]any // "guildID/userID" -> attrs
 	automod     map[string]map[string]any // rule id -> attrs
 	onboard     map[string]map[string]any // guild id -> onboarding object
+	invites     map[string]map[string]any // invite code -> attrs (role_ids as []any)
+	// invitePosts counts create-invite requests, so a test can assert that an
+	// invite the provider refused before the write was never sent at all.
+	invitePosts int
+	// channelPatches records every PATCH /channels/{id} body per channel, so a test
+	// can assert on what the provider sent rather than on what landed in state.
+	channelPatches map[string][]map[string]any
 }
 
 func newMockDiscord(t *testing.T) *mockDiscord {
@@ -62,6 +69,9 @@ func newMockDiscord(t *testing.T) *mockDiscord {
 		members:  map[string]map[string]any{},
 		automod:  map[string]map[string]any{},
 		onboard:  map[string]map[string]any{},
+		invites:  map[string]map[string]any{},
+
+		channelPatches: map[string][]map[string]any{},
 	}
 	srv := httptest.NewServer(m)
 	t.Cleanup(srv.Close)
@@ -128,6 +138,79 @@ func (m *mockDiscord) seedChannel(id, guildID, name, parentID string, position i
 		attrs["parent_id"] = parentID
 	}
 	m.channels[id] = attrs
+}
+
+// seedForumChannel plants a forum channel (GUILD_FORUM) carrying tags with fixed
+// ids, standing in for a forum that already exists in Discord before it is
+// imported. Each tag is {id, name}.
+func (m *mockDiscord) seedForumChannel(id, guildID, name string, tags ...[2]string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	wire := make([]any, 0, len(tags))
+	for _, t := range tags {
+		wire = append(wire, map[string]any{
+			"id": t[0], "name": t[1], "moderated": false, "emoji_id": nil, "emoji_name": nil,
+		})
+	}
+	m.channels[id] = map[string]any{
+		"id": id, "guild_id": guildID, "name": name, "type": float64(15),
+		"position": float64(0), "nsfw": false, "default_forum_layout": float64(0),
+		"default_thread_rate_limit_per_user": float64(0), "available_tags": wire,
+	}
+}
+
+// assignForumTagIDs does what Discord does with a forum's available_tags write:
+// a tag sent with the id of a tag the channel already has is that tag, edited in
+// place; a tag sent without one (or with an id the channel does not know) is a
+// new tag and gets a fresh snowflake. Every tag left out of the list is deleted,
+// which replacing the stored list already models.
+func (m *mockDiscord) assignForumTagIDs(before, attrs map[string]any) {
+	tags, ok := attrs["available_tags"].([]any)
+	if !ok {
+		return
+	}
+	known := map[string]bool{}
+	if before != nil {
+		prior, _ := before["available_tags"].([]any)
+		for _, p := range prior {
+			if pm, ok := p.(map[string]any); ok {
+				if id, _ := pm["id"].(string); id != "" {
+					known[id] = true
+				}
+			}
+		}
+	}
+	for _, t := range tags {
+		tm, ok := t.(map[string]any)
+		if !ok {
+			continue
+		}
+		if id, _ := tm["id"].(string); id == "" || !known[id] {
+			tm["id"] = m.id()
+		}
+	}
+}
+
+// forumTagIDsSent reads back the tag ids of every PATCH the provider sent for a
+// channel, in order; a tag sent without an id reads as "".
+func (m *mockDiscord) forumTagIDsSent(channelID string) [][]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out [][]string
+	for _, body := range m.channelPatches[channelID] {
+		tags, ok := body["available_tags"].([]any)
+		if !ok {
+			continue
+		}
+		ids := make([]string, 0, len(tags))
+		for _, t := range tags {
+			tm, _ := t.(map[string]any)
+			id, _ := tm["id"].(string)
+			ids = append(ids, id)
+		}
+		out = append(out, ids)
+	}
+	return out
 }
 
 // rolePositions reads back the live position of every role, so a check can assert
@@ -263,6 +346,10 @@ func (m *mockDiscord) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.serveChannelPermission(w, r, segs[1], segs[3])
 	case len(segs) == 2 && segs[0] == "users" && segs[1] == "@me":
 		writeJSON(w, http.StatusOK, map[string]any{"id": mockAppUserID, "username": "mock-app", "bot": true})
+	case len(segs) == 3 && segs[0] == "channels" && segs[2] == "invites":
+		m.serveChannelInvites(w, r, segs[1])
+	case len(segs) == 2 && segs[0] == "invites":
+		m.serveInviteItem(w, r, segs[1])
 	case len(segs) == 2 && segs[0] == "channels":
 		m.serveChannelItem(w, r, segs[1])
 	default:
@@ -591,6 +678,7 @@ func (m *mockDiscord) serveChannelsCollection(w http.ResponseWriter, r *http.Req
 		for k, v := range decodeObject(r) {
 			attrs[k] = v
 		}
+		m.assignForumTagIDs(nil, attrs)
 		id := m.id()
 		attrs["id"] = id
 		attrs["guild_id"] = guildID
@@ -631,7 +719,15 @@ func (m *mockDiscord) serveChannelItem(w http.ResponseWriter, r *http.Request, i
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, a)
 	case http.MethodPatch:
-		for k, v := range decodeObject(r) {
+		body := decodeObject(r)
+		// Snapshot what was sent before the tag ids below are filled in.
+		sent := map[string]any{}
+		if raw, err := json.Marshal(body); err == nil {
+			_ = json.Unmarshal(raw, &sent)
+		}
+		m.channelPatches[id] = append(m.channelPatches[id], sent)
+		m.assignForumTagIDs(a, body)
+		for k, v := range body {
 			a[k] = v
 		}
 		writeJSON(w, http.StatusOK, a)
@@ -641,6 +737,106 @@ func (m *mockDiscord) serveChannelItem(w http.ResponseWriter, r *http.Request, i
 	default:
 		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
 	}
+}
+
+// serveChannelInvites creates an invite on a channel. Like Discord, it grants a
+// role only if the app could assign it: a role that is unknown, managed, or not
+// strictly below the app's own highest role answers the whole request with a
+// bare 50013 — which is what the provider has to explain when it could not check
+// the hierarchy itself. The channel need not be seeded: an unknown channel is how
+// a test makes the provider's own role lookup fail.
+func (m *mockDiscord) serveChannelInvites(w http.ResponseWriter, r *http.Request, channelID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	m.invitePosts++
+	body := decodeObject(r)
+	roleIDs, _ := body["role_ids"].([]any)
+	ceiling := m.appRoleCeiling()
+	for _, v := range roleIDs {
+		id, _ := v.(string)
+		role, ok := m.roles[id]
+		p, _ := role["position"].(float64)
+		if managed, _ := role["managed"].(bool); !ok || managed || int64(p) >= ceiling {
+			http.Error(w, `{"message":"Missing Permissions","code":50013}`, http.StatusForbidden)
+			return
+		}
+	}
+	code := "inv" + m.id()
+	attrs := map[string]any{
+		"code": code, "channel_id": channelID,
+		"max_age": float64(86400), "max_uses": float64(0), "temporary": false,
+		"role_ids": roleIDs,
+	}
+	if v, ok := body["max_age"]; ok {
+		attrs["max_age"] = v
+	}
+	if v, ok := body["max_uses"]; ok {
+		attrs["max_uses"] = v
+	}
+	if v, ok := body["temporary"]; ok {
+		attrs["temporary"] = v
+	}
+	if ch, ok := m.channels[channelID]; ok {
+		attrs["guild_id"] = ch["guild_id"]
+	}
+	m.invites[code] = attrs
+	writeJSON(w, http.StatusOK, attrs)
+}
+
+// serveInviteItem reads or deletes an invite by code. The read has the shape of
+// GET /invites/{code}: channel and guild as partial objects, the granted roles as
+// a `roles` array of partial role objects, and no max_age/max_uses/temporary.
+func (m *mockDiscord) serveInviteItem(w http.ResponseWriter, r *http.Request, code string) {
+	inv, ok := m.invites[code]
+	if !ok {
+		http.Error(w, `{"message":"Unknown Invite","code":10006}`, http.StatusNotFound)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		roleIDs, _ := inv["role_ids"].([]any)
+		roles := make([]map[string]any, 0, len(roleIDs))
+		for _, v := range roleIDs {
+			id, _ := v.(string)
+			name, _ := m.roles[id]["name"].(string)
+			roles = append(roles, map[string]any{"id": id, "name": name})
+		}
+		out := map[string]any{
+			"code":    code,
+			"channel": map[string]any{"id": inv["channel_id"]},
+			"roles":   roles,
+		}
+		if g, ok := inv["guild_id"]; ok {
+			out["guild"] = map[string]any{"id": g}
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodDelete:
+		delete(m.invites, code)
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// invitePostCount reads back how many create-invite requests were made.
+func (m *mockDiscord) invitePostCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.invitePosts
+}
+
+// setInviteRoles rewrites an invite's granted roles out of band, standing in for
+// a change nobody made through the provider.
+func (m *mockDiscord) setInviteRoles(code string, ids ...string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	roleIDs := make([]any, len(ids))
+	for i, id := range ids {
+		roleIDs[i] = id
+	}
+	m.invites[code]["role_ids"] = roleIDs
 }
 
 // captureAttr records a state attribute's value into dst so a later step can

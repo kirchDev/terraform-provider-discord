@@ -130,7 +130,7 @@ prefix_rule(
     pattern = ["rm", ["-rf", "-fr", "-Rf", "-fR"], "/"],
     decision = "forbidden",
     justification = "Recursive delete from the filesystem root",
-    match = ["rm -rf /", "rm -rf /etc"],
+    match = ["rm -rf /", "rm -fr /"],
     not_match = ["rm -rf node_modules", "rm -rf dist"],
 )
 
@@ -153,7 +153,7 @@ prefix_rule(
     pattern = [["dd", "mkfs", "shred", "fdisk", "parted"]],
     decision = "forbidden",
     justification = "Writes to block devices; never needed from a repo",
-    match = ["dd if=/dev/zero of=/dev/sda", "mkfs.ext4 /dev/sdb1"],
+    match = ["dd if=/dev/zero of=/dev/sda", "mkfs -t ext4 /dev/sdb1"],
 )
 
 # ──────────────────────────── databases ──────────────────────────────────────

@@ -76,14 +76,20 @@
     ]
   },
   "profiles": {
-    "fleet": {
+    "parallel": {
+      "work": {
+        "parallel": true,
+        "concurrency": 4
+      }
+    },
+    "parallel-worktree": {
       "work": {
         "concurrency": 8,
         "branch": "worktree",
         "parallel": true
       }
     },
-    "fleet-with-queue": {
+    "parallel-worktree-queue": {
       "work": {
         "concurrency": 8,
         "branch": "worktree",
