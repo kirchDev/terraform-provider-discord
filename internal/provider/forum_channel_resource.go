@@ -27,8 +27,9 @@ import (
 // each one attached to its tag across applies. ---
 
 // forumChannelFlagRequireTag is the REQUIRE_TAG channel flag: a post created in
-// the forum must carry at least one tag.
-const forumChannelFlagRequireTag = 1 << 15
+// the forum must carry at least one tag. Discord documents it as 1 << 4; 1 << 15
+// is HIDE_MEDIA_DOWNLOAD_OPTIONS, which Discord refuses on a forum (50182).
+const forumChannelFlagRequireTag = 1 << 4
 
 var (
 	_ resource.Resource                = (*forumChannelResource)(nil)
