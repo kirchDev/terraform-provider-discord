@@ -313,3 +313,179 @@ func forumTestTags(t *testing.T, tags ...forumTagModel) types.List {
 	}
 	return list
 }
+
+// forumRequireTagCfg renders a bare discord_forum_channel; requireTag "" omits the
+// attribute, otherwise it is the literal HCL value.
+func forumRequireTagCfg(requireTag string) string {
+	line := ""
+	if requireTag != "" {
+		line = `
+  require_tag = ` + requireTag
+	}
+	return `
+resource "discord_forum_channel" "test" {
+  server_id = "999"
+  name      = "ideas"` + line + `
+}
+`
+}
+
+// otherChannelFlag stands in for any flag bit the provider does not manage; a
+// require_tag write must leave it exactly as Discord has it.
+const otherChannelFlag = 1 << 4
+
+// TestAccForumChannelResourceRequireTagCreate covers setting the flag when the
+// forum is created, and clearing it again later.
+func TestAccForumChannelResourceRequireTagCreate(t *testing.T) {
+	m := newMockDiscord(t)
+	const rn = "discord_forum_channel.test"
+	var channelID string
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: forumRequireTagCfg("true"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "require_tag", "true"),
+					captureAttr(rn, "id", &channelID),
+					func(*terraform.State) error {
+						if got := m.channelFlags(channelID); got != forumChannelFlagRequireTag {
+							return fmt.Errorf("live flags = %d, want %d", got, forumChannelFlagRequireTag)
+						}
+						return nil
+					},
+				),
+			},
+			{
+				Config: forumRequireTagCfg("false"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "require_tag", "false"),
+					func(*terraform.State) error {
+						if got := m.channelFlags(channelID); got != 0 {
+							return fmt.Errorf("live flags = %d, want 0", got)
+						}
+						return nil
+					},
+				),
+			},
+		},
+	})
+}
+
+// TestAccForumChannelResourceRequireTagPreservesOtherFlags is the brief's write
+// rule: toggling require_tag sets or clears bit 15 only, never sends a bare value.
+func TestAccForumChannelResourceRequireTagPreservesOtherFlags(t *testing.T) {
+	m := newMockDiscord(t)
+	const rn = "discord_forum_channel.test"
+	const channelID = "700000000000000001"
+	m.seedForumChannel(channelID, "999", "ideas")
+	m.setChannelFlags(channelID, otherChannelFlag)
+
+	checkLastFlagsSent := func(want int64) resource.TestCheckFunc {
+		return func(*terraform.State) error {
+			sent := m.channelFlagsSent(channelID)
+			if len(sent) == 0 {
+				return fmt.Errorf("no PATCH carrying flags was sent")
+			}
+			if got := sent[len(sent)-1]; got != want {
+				return fmt.Errorf("PATCH flags = %d, want %d — every other bit must be preserved", got, want)
+			}
+			return nil
+		}
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config:             forumRequireTagCfg(""),
+				ResourceName:       rn,
+				ImportState:        true,
+				ImportStatePersist: true,
+				ImportStateId:      channelID,
+			},
+			{
+				Config: forumRequireTagCfg("true"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "require_tag", "true"),
+					checkLastFlagsSent(otherChannelFlag|forumChannelFlagRequireTag),
+				),
+			},
+			{
+				Config: forumRequireTagCfg("false"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "require_tag", "false"),
+					checkLastFlagsSent(otherChannelFlag),
+				),
+			},
+		},
+	})
+}
+
+// TestAccForumChannelResourceRequireTagOmittedPlansNoChange keeps today's
+// behaviour for configs without the attribute: a forum already requiring a tag
+// is read as such and no change is planned or sent.
+func TestAccForumChannelResourceRequireTagOmittedPlansNoChange(t *testing.T) {
+	m := newMockDiscord(t)
+	const rn = "discord_forum_channel.test"
+	const channelID = "700000000000000001"
+	m.seedForumChannel(channelID, "999", "ideas")
+	m.setChannelFlags(channelID, forumChannelFlagRequireTag)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config:             forumRequireTagCfg(""),
+				ResourceName:       rn,
+				ImportState:        true,
+				ImportStatePersist: true,
+				ImportStateId:      channelID,
+			},
+			{
+				Config: forumRequireTagCfg(""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(rn, "require_tag", "true"),
+					func(*terraform.State) error {
+						if got := m.channelFlags(channelID); got != forumChannelFlagRequireTag {
+							return fmt.Errorf("live flags = %d, want %d", got, forumChannelFlagRequireTag)
+						}
+						if sent := m.channelFlagsSent(channelID); len(sent) != 0 {
+							return fmt.Errorf("flags were sent (%v) for a config that omits require_tag", sent)
+						}
+						return nil
+					},
+				),
+			},
+			{
+				Config:   forumRequireTagCfg(""),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+// TestAccForumChannelResourceRequireTagManualToggleIsDrift covers the read rule: a
+// flag toggled by hand in the Discord client shows up in the plan.
+func TestAccForumChannelResourceRequireTagManualToggleIsDrift(t *testing.T) {
+	m := newMockDiscord(t)
+	const rn = "discord_forum_channel.test"
+	var channelID string
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: forumRequireTagCfg("true"),
+				Check:  captureAttr(rn, "id", &channelID),
+			},
+			{
+				PreConfig:          func() { m.setChannelFlags(channelID, 0) },
+				Config:             forumRequireTagCfg("true"),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}

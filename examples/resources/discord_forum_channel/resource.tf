@@ -14,6 +14,10 @@ resource "discord_forum_channel" "help" {
   default_sort_order   = 0
   default_forum_layout = 1
 
+  # Every post must carry at least one tag, so a discord_forum_post into this
+  # forum must set `tags`.
+  require_tag = true
+
   available_tags = [
     {
       key       = "unresolved"

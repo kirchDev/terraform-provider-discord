@@ -32,6 +32,10 @@ resource "discord_forum_channel" "help" {
   default_sort_order   = 0
   default_forum_layout = 1
 
+  # Every post must carry at least one tag, so a discord_forum_post into this
+  # forum must set `tags`.
+  require_tag = true
+
   available_tags = [
     {
       key       = "unresolved"
@@ -66,6 +70,7 @@ resource "discord_forum_channel" "help" {
 - `default_thread_rate_limit_per_user` (Number) Default slowmode (seconds) for new posts in the forum.
 - `nsfw` (Boolean) Whether the channel is age-restricted.
 - `position` (Number) Sorting position of the channel.
+- `require_tag` (Boolean) Whether a post created in the forum must carry at least one tag (the `REQUIRE_TAG` channel flag). Only that bit of the channel's `flags` is written; every other flag is left as Discord has it. Omit it to leave the setting unmanaged — it is still read, so a toggle made by hand in the Discord client shows up as drift once you set it. While it is `true`, a `discord_forum_post` into this forum must set at least one entry in `tags`, or Discord rejects the create.
 - `sync_perms_with_category` (Boolean) When true, the channel's permission overwrites are synced to its parent category on create/update.
 - `topic` (String) Forum guidelines (the channel topic).
 

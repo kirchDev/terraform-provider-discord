@@ -159,6 +159,36 @@ func (m *mockDiscord) seedForumChannel(id, guildID, name string, tags ...[2]stri
 	}
 }
 
+// setChannelFlags overwrites a channel's live flags bitfield, standing in for a
+// change made by hand in the Discord client.
+func (m *mockDiscord) setChannelFlags(id string, flags int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.channels[id]["flags"] = float64(flags)
+}
+
+// channelFlags reads back a channel's live flags bitfield.
+func (m *mockDiscord) channelFlags(id string) int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	f, _ := m.channels[id]["flags"].(float64)
+	return int64(f)
+}
+
+// channelFlagsSent reads back the flags of every PATCH the provider sent for a
+// channel that carried the field, in order.
+func (m *mockDiscord) channelFlagsSent(channelID string) []int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []int64
+	for _, body := range m.channelPatches[channelID] {
+		if f, ok := body["flags"].(float64); ok {
+			out = append(out, int64(f))
+		}
+	}
+	return out
+}
+
 // assignForumTagIDs does what Discord does with a forum's available_tags write:
 // a tag sent with the id of a tag the channel already has is that tag, edited in
 // place; a tag sent without one (or with an id the channel does not know) is a
