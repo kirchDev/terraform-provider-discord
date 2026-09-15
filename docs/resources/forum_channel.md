@@ -44,7 +44,7 @@ resource "discord_forum_channel" "help" {
 
 ### Optional
 
-- `available_tags` (Attributes List) Tags that can be applied to posts in the forum. Managed by value; Discord assigns the ids. (see [below for nested schema](#nestedatt--available_tags))
+- `available_tags` (Attributes List) Tags that can be applied to posts in the forum. Discord assigns the ids; a tag keeps its id across applies as long as its `name` is unchanged, wherever it sits in the list. (see [below for nested schema](#nestedatt--available_tags))
 - `category` (String) Snowflake ID of the parent category.
 - `default_forum_layout` (Number) Default layout (`0` not set, `1` list, `2` gallery).
 - `default_reaction_emoji_id` (String) Snowflake ID of the default reaction emoji (custom emoji).

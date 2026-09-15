@@ -21,8 +21,8 @@ import (
 
 // --- Forum channel (#300): a GUILD_FORUM channel with managed tags, a default
 // reaction, sort order and layout. Threads (forum posts) are managed by the
-// discord_thread resource. Tags are managed declaratively by value; Discord owns
-// their ids, so a tag's id may change if the tag set is reshuffled. ---
+// discord_thread resource. Discord owns the tag ids; forum_tag_identity.go keeps
+// each one attached to its tag across applies. ---
 
 var (
 	_ resource.Resource                = (*forumChannelResource)(nil)
@@ -153,10 +153,11 @@ func (r *forumChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 			"default_reaction_emoji_id":   schema.StringAttribute{MarkdownDescription: "Snowflake ID of the default reaction emoji (custom emoji).", Optional: true},
 			"default_reaction_emoji_name": schema.StringAttribute{MarkdownDescription: "Unicode emoji used as the default reaction.", Optional: true},
 			"available_tags": schema.ListNestedAttribute{
-				MarkdownDescription: "Tags that can be applied to posts in the forum. Managed by value; Discord assigns the ids.",
-				Optional:            true,
-				Computed:            true,
-				PlanModifiers:       []planmodifier.List{listplanmodifier.UseStateForUnknown()},
+				MarkdownDescription: "Tags that can be applied to posts in the forum. Discord assigns the ids; a tag keeps its id " +
+					"across applies as long as its `name` is unchanged, wherever it sits in the list.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown(), forumTagIdentity()},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id":         schema.StringAttribute{MarkdownDescription: "Snowflake ID of the tag (assigned by Discord).", Computed: true},
