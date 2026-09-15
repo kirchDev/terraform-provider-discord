@@ -34,6 +34,7 @@ type inviteDataSourceModel struct {
 	MaxAge    types.Int64  `tfsdk:"max_age"`
 	Temporary types.Bool   `tfsdk:"temporary"`
 	URL       types.String `tfsdk:"url"`
+	RoleIDs   types.Set    `tfsdk:"role_ids"`
 }
 
 func (d *inviteDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -52,6 +53,11 @@ func (d *inviteDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 			"max_age":    schema.Int64Attribute{MarkdownDescription: "Duration in seconds after which the invite expires (0 never expires).", Computed: true},
 			"temporary":  schema.BoolAttribute{MarkdownDescription: "Whether the invite grants temporary membership.", Computed: true},
 			"url":        schema.StringAttribute{MarkdownDescription: "Full invite URL.", Computed: true},
+			"role_ids": schema.SetAttribute{
+				MarkdownDescription: "Snowflake IDs of the roles granted to a user who joins through the invite (empty when it grants none).",
+				ElementType:         types.StringType,
+				Computed:            true,
+			},
 		},
 	}
 }
@@ -87,6 +93,9 @@ func (d *inviteDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		Guild *struct {
 			ID string `json:"id"`
 		} `json:"guild"`
+		Roles []struct {
+			ID string `json:"id"`
+		} `json:"roles"`
 	}
 	if err := d.client.Get(ctx, "/invites/"+data.Code.ValueString()+"?with_counts=true", &inv); err != nil {
 		resp.Diagnostics.AddError("Unable to read Discord invite", err.Error())
@@ -108,6 +117,17 @@ func (d *inviteDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	data.MaxAge = types.Int64Value(inv.MaxAge)
 	data.Temporary = types.BoolValue(inv.Temporary)
 	data.URL = types.StringValue("https://discord.gg/" + data.Code.ValueString())
+
+	roleIDs := make([]string, 0, len(inv.Roles))
+	for _, role := range inv.Roles {
+		roleIDs = append(roleIDs, role.ID)
+	}
+	set, failed := setOfStrings(ctx, roleIDs)
+	if failed {
+		resp.Diagnostics.AddError("Unable to read Discord invite", "converting role_ids")
+		return
+	}
+	data.RoleIDs = set
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
