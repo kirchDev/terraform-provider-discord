@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.8.1...v0.9.0) (2026-09-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **forum:** discord_forum_channel.available_tags entries require a unique `key`. Add the keys on their own first, leaving every tag where and as it is, then apply.
+
+### Features
+
+* **invite:** grant roles on join with role_ids ([a1dd7af](https://github.com/kirchDev/terraform-provider-discord/commit/a1dd7afcd388b3fccc8f02dee4abfc1422620c0d)), closes [#58](https://github.com/kirchDev/terraform-provider-discord/issues/58)
+
+
+### Bug Fixes
+
+* **config:** correct the codex policy match examples ([535e304](https://github.com/kirchDev/terraform-provider-discord/commit/535e30495fa3a8bb177e87f7d9d3ba422439c391))
+* **forum:** keep tag ids when the forum changes ([bde0717](https://github.com/kirchDev/terraform-provider-discord/commit/bde0717e47b7c8d5d5a17325c8ecb79ee59a9f5c)), closes [#60](https://github.com/kirchDev/terraform-provider-discord/issues/60)
+* **forum:** key forum tags on a caller-supplied key ([1a434ff](https://github.com/kirchDev/terraform-provider-discord/commit/1a434ff1c600d86eef904b2aee05cc802825784a)), closes [#60](https://github.com/kirchDev/terraform-provider-discord/issues/60)
+* **invite:** keep the best-effort role lookup out of the error path ([1875dc5](https://github.com/kirchDev/terraform-provider-discord/commit/1875dc5005557a3843e290f3ed240702c12f917c)), closes [#58](https://github.com/kirchDev/terraform-provider-discord/issues/58)
+
 ## [0.8.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.8.0...v0.8.1) (2026-09-09)
 
 
