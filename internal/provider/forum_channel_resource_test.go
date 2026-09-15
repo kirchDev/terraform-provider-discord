@@ -331,8 +331,21 @@ resource "discord_forum_channel" "test" {
 }
 
 // otherChannelFlag stands in for any flag bit the provider does not manage; a
-// require_tag write must leave it exactly as Discord has it.
-const otherChannelFlag = 1 << 4
+// require_tag write must leave it exactly as Discord has it. It must not be
+// REQUIRE_TAG's own bit: that is how the wrong constant once passed (#65).
+const otherChannelFlag = 1 << 1
+
+// TestForumChannelFlagRequireTagIsDiscordsValue pins the constant to the number
+// Discord documents, not to itself — the other tests compare against the
+// constant, so a wrong value would pass all of them (#65).
+func TestForumChannelFlagRequireTagIsDiscordsValue(t *testing.T) {
+	if forumChannelFlagRequireTag != 16 {
+		t.Fatalf("forumChannelFlagRequireTag = %d, want 16 (REQUIRE_TAG, 1 << 4)", forumChannelFlagRequireTag)
+	}
+	if otherChannelFlag == forumChannelFlagRequireTag {
+		t.Fatalf("otherChannelFlag must differ from REQUIRE_TAG's bit")
+	}
+}
 
 // TestAccForumChannelResourceRequireTagCreate covers setting the flag when the
 // forum is created, and clearing it again later.
@@ -374,7 +387,7 @@ func TestAccForumChannelResourceRequireTagCreate(t *testing.T) {
 }
 
 // TestAccForumChannelResourceRequireTagPreservesOtherFlags is the brief's write
-// rule: toggling require_tag sets or clears bit 15 only, never sends a bare value.
+// rule: toggling require_tag sets or clears bit 4 only, never sends a bare value.
 func TestAccForumChannelResourceRequireTagPreservesOtherFlags(t *testing.T) {
 	m := newMockDiscord(t)
 	const rn = "discord_forum_channel.test"
