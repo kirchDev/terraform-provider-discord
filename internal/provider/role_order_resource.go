@@ -128,7 +128,7 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 		return fmt.Errorf("reading role_ids")
 	}
 	guildID := m.ServerID.ValueString()
-	roles, err := r.roles(ctx, guildID)
+	roles, err := guildRoles(ctx, r.client, guildID)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 	}
 	listed := listedSet(ids)
 	taken := occupiedPositions(positions, listed)
-	appID, appTop := r.appCeiling(ctx, roles)
+	appID, appTop := appCeiling(ctx, r.client, roles)
 	// Two ceilings, bounding different things. crossingCeiling keeps the top-up
 	// from climbing over an unlisted sibling — a soft line the renumbering below is
 	// allowed to cross, since Discord's own re-sort moves that sibling out of the
@@ -202,7 +202,7 @@ func (r *roleOrderResource) apply(ctx context.Context, m *roleOrderResourceModel
 	}
 	// The renumbering was planned against a model of Discord's re-sort, so what
 	// Discord actually did is read back and checked rather than assumed.
-	live, err := r.roles(ctx, guildID)
+	live, err := guildRoles(ctx, r.client, guildID)
 	if err != nil {
 		return fmt.Errorf("reading the hierarchy back after reordering: %w", err)
 	}
@@ -239,8 +239,8 @@ func samePositions(body []map[string]any, positions map[string]int64) bool {
 // lookup fails, or no role carries the tag — the answer is noCeiling, which is the
 // arithmetic this resource did before the ceiling existed. A ceiling that cannot
 // be read is not a reason to refuse an order that may well be fine.
-func (r *roleOrderResource) appCeiling(ctx context.Context, roles map[string]rolePos) (string, int64) {
-	me, err := r.client.BotUserID(ctx)
+func appCeiling(ctx context.Context, c *client.Client, roles map[string]rolePos) (string, int64) {
+	me, err := c.BotUserID(ctx)
 	if err != nil || me == "" {
 		return "", noCeiling
 	}
@@ -348,9 +348,9 @@ func roleIDAt(roles map[string]rolePos, position int64) string {
 	return found
 }
 
-// roles reads the guild's roles keyed by id.
-func (r *roleOrderResource) roles(ctx context.Context, guildID string) (map[string]rolePos, error) {
-	raws, err := r.client.List(ctx, "/guilds/"+guildID+"/roles")
+// guildRoles reads the guild's roles keyed by id.
+func guildRoles(ctx context.Context, c *client.Client, guildID string) (map[string]rolePos, error) {
+	raws, err := c.List(ctx, "/guilds/"+guildID+"/roles")
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +431,7 @@ func (r *roleOrderResource) ImportState(ctx context.Context, req resource.Import
 // on import (no role_ids yet) it discovers every role except @everyone.
 func (r *roleOrderResource) readInto(ctx context.Context, m *roleOrderResourceModel) error {
 	guildID := m.ServerID.ValueString()
-	roles, err := r.roles(ctx, guildID)
+	roles, err := guildRoles(ctx, r.client, guildID)
 	if err != nil {
 		return err
 	}
