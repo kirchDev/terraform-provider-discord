@@ -231,14 +231,8 @@ func (r *inviteResource) ImportState(ctx context.Context, req resource.ImportSta
 // guild or its roles cannot be read, it answers nil and the invite is sent anyway;
 // where the app's own role cannot be found, only the hierarchy half is skipped.
 func (r *inviteResource) checkGrantable(ctx context.Context, channelID string, roleIDs []string) error {
-	var ch struct {
-		GuildID string `json:"guild_id"`
-	}
-	if err := r.client.Get(ctx, "/channels/"+channelID, &ch); err != nil || ch.GuildID == "" {
-		return nil
-	}
-	roles, err := guildRoles(ctx, r.client, ch.GuildID)
-	if err != nil {
+	roles := r.channelGuildRoles(ctx, channelID)
+	if roles == nil {
 		return nil
 	}
 	appID, appTop := appCeiling(ctx, r.client, roles)
@@ -257,6 +251,23 @@ func (r *inviteResource) checkGrantable(ctx context.Context, channelID string, r
 		}
 	}
 	return nil
+}
+
+// channelGuildRoles loads the roles of the guild a channel belongs to, or nil
+// where either read fails — the lookup is best effort, so a failure is not an
+// error for checkGrantable to return but the absence of anything to check.
+func (r *inviteResource) channelGuildRoles(ctx context.Context, channelID string) map[string]rolePos {
+	var ch struct {
+		GuildID string `json:"guild_id"`
+	}
+	if err := r.client.Get(ctx, "/channels/"+channelID, &ch); err != nil || ch.GuildID == "" {
+		return nil
+	}
+	roles, err := guildRoles(ctx, r.client, ch.GuildID)
+	if err != nil {
+		return nil
+	}
+	return roles
 }
 
 // explainInviteError reports Discord's 50013 "Missing Permissions" as the
