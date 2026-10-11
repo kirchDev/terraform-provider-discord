@@ -44,7 +44,7 @@ Two layers coexist:
 
 ## Commands
 
-Go (via `GNUmakefile`; needs **Go ≥ 1.25** — `terraform-plugin-framework v1.19` requires it):
+Go (via `GNUmakefile`; needs **Go ≥ 1.26** — `golang.org/x/net` and friends require it). `go.mod` also pins `toolchain go1.26.9`: `setup-go` in CI and the release reads that line, and builds with an older 1.26 patch would ship a `net/http` with known vulnerabilities. Raise it when a newer Go patch fixes the standard library; keep it at a version the local `golangci-lint` was built with or newer.
 
 | Command        | What it does                                                                  |
 | :------------- | :---------------------------------------------------------------------------- |
@@ -55,6 +55,7 @@ Go (via `GNUmakefile`; needs **Go ≥ 1.25** — `terraform-plugin-framework v1.
 | `make docs`    | render `docs/` from the schema (build + export + tfplugindocs)                |
 | `make test`    | `go test ./...`                                                               |
 | `make testacc` | `TF_ACC=1 go test ./...` — mock acceptance tests; needs a TF binary, no token |
+| `make vuln`    | `govulncheck ./...` — reachable vulnerabilities, standard library included    |
 
 Node meta layer: `pnpm install` (wires husky hooks), `pnpm check` / `pnpm check:fix`. CI (`.github/workflows/ci.yml`) runs a **Go job** (build·vet·gofmt·test + `TF_ACC` mock acceptance tests, OpenTofu installed) and a **Lint job** (oxlint + oxfmt).
 
