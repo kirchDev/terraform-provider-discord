@@ -36,4 +36,8 @@ test:
 testacc:
 	TF_ACC=1 go test ./... -v -timeout 120m
 
-.PHONY: default build install tidy fmt vet lint generate docs test testacc
+# Reachable vulnerabilities in the module graph and the standard library.
+vuln:
+	govulncheck ./...
+
+.PHONY: default build install tidy fmt vet lint generate docs test testacc vuln
