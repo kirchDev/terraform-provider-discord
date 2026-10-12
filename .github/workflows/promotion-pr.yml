@@ -15,4 +15,4 @@ permissions:
 jobs:
   promotion-pr:
     name: Promotion PR
-    uses: kirchDev/workflows/.github/workflows/_promotion-pr.yml@94cbcbd676b989ac6c6327055a240132f5cd76a5 # v0.8.0
+    uses: kirchDev/workflows/.github/workflows/_promotion-pr.yml@4767c07534dcf886d6a387f29dc70a097b44c591 # v0.14.0

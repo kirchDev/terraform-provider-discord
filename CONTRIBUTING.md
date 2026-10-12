@@ -17,7 +17,7 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 Requirements:
 
-- **Go 1.25+** (the provider — `terraform-plugin-framework v1.19` needs it) and `golangci-lint`
+- **Go 1.26+** (the provider; `go.mod` pins `toolchain go1.26.9`, which Go fetches on its own), `golangci-lint` and `govulncheck` (`go install golang.org/x/vuln/cmd/govulncheck@latest`)
 - Node **24+** and **pnpm 11** (the meta layer: lint/format/hooks/release tooling)
 - `git`; OpenTofu or Terraform to load the built binary
 - A Discord bot token (`DISCORD_TOKEN`) if you want to run against the live API
