@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.3](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.2...v0.10.3) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deps:** move to go 1.27 ([1d6e069](https://github.com/kirchDev/terraform-provider-discord/commit/1d6e0691ca1a80c5ea3c8876e5f28a8043a946eb))
+
 ## [0.10.2](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.1...v0.10.2) (2026-10-12)
 
 
