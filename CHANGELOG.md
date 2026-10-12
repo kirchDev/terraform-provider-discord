@@ -1,5 +1,103 @@
 # Changelog
 
+## [0.10.2](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.1...v0.10.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deps:** move to go 1.26 and close 22 reachable vulnerabilities ([64f16b6](https://github.com/kirchDev/terraform-provider-discord/commit/64f16b65115ec59c62037ae6f7bc0fbe13281ce8))
+
+## [0.10.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.0...v0.10.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **forum:** write REQUIRE_TAG as 1 &lt;&lt; 4, not 1 &lt;&lt; 15 ([f3e0f44](https://github.com/kirchDev/terraform-provider-discord/commit/f3e0f44582c5b659449a8e679165239e82e07aac)), closes [#65](https://github.com/kirchDev/terraform-provider-discord/issues/65)
+
+## [0.10.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.9.0...v0.10.0) (2026-09-15)
+
+
+### Features
+
+* **forum:** manage the REQUIRE_TAG flag with require_tag ([c577ee8](https://github.com/kirchDev/terraform-provider-discord/commit/c577ee8224485a09fa8bc6a08e04500e4a684978)), closes [#59](https://github.com/kirchDev/terraform-provider-discord/issues/59)
+
+## [0.9.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.8.1...v0.9.0) (2026-09-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **forum:** discord_forum_channel.available_tags entries require a unique `key`. Add the keys on their own first, leaving every tag where and as it is, then apply.
+
+### Features
+
+* **invite:** grant roles on join with role_ids ([a1dd7af](https://github.com/kirchDev/terraform-provider-discord/commit/a1dd7afcd388b3fccc8f02dee4abfc1422620c0d)), closes [#58](https://github.com/kirchDev/terraform-provider-discord/issues/58)
+
+
+### Bug Fixes
+
+* **config:** correct the codex policy match examples ([535e304](https://github.com/kirchDev/terraform-provider-discord/commit/535e30495fa3a8bb177e87f7d9d3ba422439c391))
+* **forum:** keep tag ids when the forum changes ([bde0717](https://github.com/kirchDev/terraform-provider-discord/commit/bde0717e47b7c8d5d5a17325c8ecb79ee59a9f5c)), closes [#60](https://github.com/kirchDev/terraform-provider-discord/issues/60)
+* **forum:** key forum tags on a caller-supplied key ([1a434ff](https://github.com/kirchDev/terraform-provider-discord/commit/1a434ff1c600d86eef904b2aee05cc802825784a)), closes [#60](https://github.com/kirchDev/terraform-provider-discord/issues/60)
+* **invite:** keep the best-effort role lookup out of the error path ([1875dc5](https://github.com/kirchDev/terraform-provider-discord/commit/1875dc5005557a3843e290f3ed240702c12f917c)), closes [#58](https://github.com/kirchDev/terraform-provider-discord/issues/58)
+
+## [0.8.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.8.0...v0.8.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* **order:** keep discord_role_order below the app's own role ([f80bf75](https://github.com/kirchDev/terraform-provider-discord/commit/f80bf75caf5ac223681b9e09b9cbccd35c763452)), closes [#55](https://github.com/kirchDev/terraform-provider-discord/issues/55)
+
+## [0.8.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.7.0...v0.8.0) (2026-09-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* move to pnpm 12
+* this repository now requires pnpm 12.
+
+### Features
+
+* **ci:** call the central workflow bodies instead of copying them ([fe9724a](https://github.com/kirchDev/terraform-provider-discord/commit/fe9724a33be6f2b7f987e1cae74e6a2934aba679))
+
+
+### Bug Fixes
+
+* **ci:** pin the workflow bodies to v0.2.0 and drop paths-ignore ([8641e03](https://github.com/kirchDev/terraform-provider-discord/commit/8641e03bb58a1e7c28b41a4bdc328390538ab581))
+* **ci:** pin the workflow bodies to v0.5.0 ([fdedb12](https://github.com/kirchDev/terraform-provider-discord/commit/fdedb12b2f8950677691d98a0807bfbd635f4b07))
+* **ci:** pin the workflow bodies to v0.7.0 ([5878f62](https://github.com/kirchDev/terraform-provider-discord/commit/5878f6239df27c6bed709f835b12813ffb9ae714))
+* **order:** renumber a dense hierarchy so a fresh role can be placed ([df9ce01](https://github.com/kirchDev/terraform-provider-discord/commit/df9ce018966e1ed9b0bcd3d3dc33d9f2555ca2e4)), closes [#52](https://github.com/kirchDev/terraform-provider-discord/issues/52)
+
+
+### Reverts
+
+* go back to pnpm 11.25.0 ([a4909d1](https://github.com/kirchDev/terraform-provider-discord/commit/a4909d16f0b5ca4fd579c7c5de99048c90bbfd46))
+
+
+### Miscellaneous Chores
+
+* move to pnpm 12 ([e857ec8](https://github.com/kirchDev/terraform-provider-discord/commit/e857ec8c9a813c05a9ff4f27d851429dd8c6c269))
+* move to pnpm 12 ([cd5e1a7](https://github.com/kirchDev/terraform-provider-discord/commit/cd5e1a7b009fcd3ddff567bebfabf2551bc6c33a))
+
+## [0.7.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.6.0...v0.7.0) (2026-08-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **onboarding:** key prompts and options on a caller-supplied key ([#37](https://github.com/kirchDev/terraform-provider-discord/issues/37))
+
+### Features
+
+* **queue:** cut the queue branch on the first worker PR ([#33](https://github.com/kirchDev/terraform-provider-discord/issues/33)) ([b88e630](https://github.com/kirchDev/terraform-provider-discord/commit/b88e630a41f46793d3be81e9279e4152ca79f74a))
+
+
+### Bug Fixes
+
+* **ci:** let the queue PR body wrap itself ([374708b](https://github.com/kirchDev/terraform-provider-discord/commit/374708b2ff0d5e5aded114a1ea31c4176188321d))
+* **ci:** read the Queue App PEM from this owner's own -ci mirror ([127776e](https://github.com/kirchDev/terraform-provider-discord/commit/127776e5cd0b83962db064b916f4a086f4b67dc6))
+* **deps:** update the dependencies across Go, npm and Actions ([#40](https://github.com/kirchDev/terraform-provider-discord/issues/40)) ([7919ef1](https://github.com/kirchDev/terraform-provider-discord/commit/7919ef1dd9e735b75c169e42d8a3a00b1dd9b88d))
+* **onboarding:** key prompts and options on a caller-supplied key ([#37](https://github.com/kirchDev/terraform-provider-discord/issues/37)) ([40d5ff1](https://github.com/kirchDev/terraform-provider-discord/commit/40d5ff10b9c9e2ee11a7463df979816d19f115db))
+* **order:** order listed roles and channels without displacing their siblings ([#38](https://github.com/kirchDev/terraform-provider-discord/issues/38)) ([5f541fb](https://github.com/kirchDev/terraform-provider-discord/commit/5f541fbadd500944e05d6ae1727542acae375f59))
+
 ## [0.6.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.5.0...v0.6.0) (2026-07-26)
 
 
