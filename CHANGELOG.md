@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.1...v0.10.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deps:** move to go 1.26 and close 22 reachable vulnerabilities ([64f16b6](https://github.com/kirchDev/terraform-provider-discord/commit/64f16b65115ec59c62037ae6f7bc0fbe13281ce8))
+
 ## [0.10.1](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.0...v0.10.1) (2026-09-15)
 
 
