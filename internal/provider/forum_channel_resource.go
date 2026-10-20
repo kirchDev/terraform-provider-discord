@@ -32,9 +32,10 @@ import (
 const forumChannelFlagRequireTag = 1 << 4
 
 var (
-	_ resource.Resource                = (*forumChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*forumChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*forumChannelResource)(nil)
+	_ resource.Resource                     = (*forumChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*forumChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*forumChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*forumChannelResource)(nil)
 )
 
 // NewForumChannelResource returns a new discord_forum_channel resource.
@@ -221,6 +222,10 @@ func (r *forumChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *forumChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 // withRequireTag returns the live channel flags with the REQUIRE_TAG bit set or

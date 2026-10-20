@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*newsChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*newsChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*newsChannelResource)(nil)
+	_ resource.Resource                     = (*newsChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*newsChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*newsChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*newsChannelResource)(nil)
 )
 
 // NewNewsChannelResource returns a new discord_news_channel resource.
@@ -103,6 +104,10 @@ func (r *newsChannelResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *newsChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 func (r *newsChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*categoryChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*categoryChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*categoryChannelResource)(nil)
+	_ resource.Resource                     = (*categoryChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*categoryChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*categoryChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*categoryChannelResource)(nil)
 )
 
 // NewCategoryChannelResource returns a new discord_category_channel resource.
@@ -70,6 +71,10 @@ func (r *categoryChannelResource) Schema(_ context.Context, _ resource.SchemaReq
 			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *categoryChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 func (r *categoryChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

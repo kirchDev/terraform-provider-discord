@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*voiceChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*voiceChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*voiceChannelResource)(nil)
+	_ resource.Resource                     = (*voiceChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*voiceChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*voiceChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*voiceChannelResource)(nil)
 )
 
 // NewVoiceChannelResource returns a new discord_voice_channel resource.
@@ -117,6 +118,10 @@ func (r *voiceChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *voiceChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 func (r *voiceChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
