@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
@@ -209,6 +210,33 @@ func channelPermissionsAttribute() schema.SingleNestedAttribute {
 		MarkdownDescription: "The channel's permission overwrites, exhaustively: when set, any live overwrite not declared here is removed on apply and reported as drift on plan. Omit to leave overwrites unmanaged. Don't combine with `discord_channel_permission` on the same channel. Unlike `discord_channel_permission`, `allow`/`deny` here are sets of permission keys; use `allow_bits`/`deny_bits` for decimal strings.",
 		Optional:            true,
 		Attributes: map[string]schema.Attribute{
+			"role_overwrites": overwrites("roles"),
+			"user_overwrites": overwrites("users"),
+		},
+	}
+}
+
+// channelPermissionsDataSourceAttribute is the computed-only flavor for data sources.
+func channelPermissionsDataSourceAttribute() dsschema.SingleNestedAttribute {
+	side := func() map[string]dsschema.Attribute {
+		return map[string]dsschema.Attribute{
+			"allow":      dsschema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Allowed permission keys."},
+			"allow_bits": dsschema.StringAttribute{Computed: true, MarkdownDescription: "Allowed permissions as a decimal bitfield."},
+			"deny":       dsschema.SetAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Denied permission keys."},
+			"deny_bits":  dsschema.StringAttribute{Computed: true, MarkdownDescription: "Denied permissions as a decimal bitfield."},
+		}
+	}
+	overwrites := func(what string) dsschema.MapNestedAttribute {
+		return dsschema.MapNestedAttribute{
+			Computed:            true,
+			MarkdownDescription: "Overwrites for " + what + ", keyed by snowflake.",
+			NestedObject:        dsschema.NestedAttributeObject{Attributes: side()},
+		}
+	}
+	return dsschema.SingleNestedAttribute{
+		Computed:            true,
+		MarkdownDescription: "The channel's permission overwrites.",
+		Attributes: map[string]dsschema.Attribute{
 			"role_overwrites": overwrites("roles"),
 			"user_overwrites": overwrites("users"),
 		},

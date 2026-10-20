@@ -5,3 +5,7 @@ data "discord_channel" "general" {
 output "general_name" {
   value = data.discord_channel.general.name
 }
+
+output "general_role_overwrites" {
+  value = data.discord_channel.general.permissions.role_overwrites
+}

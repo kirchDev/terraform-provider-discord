@@ -38,6 +38,36 @@ Read-Only:
 - `name` (String) Channel name.
 - `nsfw` (Boolean) Whether the channel is age-restricted.
 - `parent_id` (String) Snowflake ID of the parent category.
+- `permissions` (Attributes) The channel's permission overwrites. (see [below for nested schema](#nestedatt--channels--permissions))
 - `position` (Number) Sorting position of the channel.
 - `topic` (String) Channel topic.
 - `type` (Number) Channel type.
+
+<a id="nestedatt--channels--permissions"></a>
+### Nested Schema for `channels.permissions`
+
+Read-Only:
+
+- `role_overwrites` (Attributes Map) Overwrites for roles, keyed by snowflake. (see [below for nested schema](#nestedatt--channels--permissions--role_overwrites))
+- `user_overwrites` (Attributes Map) Overwrites for users, keyed by snowflake. (see [below for nested schema](#nestedatt--channels--permissions--user_overwrites))
+
+<a id="nestedatt--channels--permissions--role_overwrites"></a>
+### Nested Schema for `channels.permissions.role_overwrites`
+
+Read-Only:
+
+- `allow` (Set of String) Allowed permission keys.
+- `allow_bits` (String) Allowed permissions as a decimal bitfield.
+- `deny` (Set of String) Denied permission keys.
+- `deny_bits` (String) Denied permissions as a decimal bitfield.
+
+
+<a id="nestedatt--channels--permissions--user_overwrites"></a>
+### Nested Schema for `channels.permissions.user_overwrites`
+
+Read-Only:
+
+- `allow` (Set of String) Allowed permission keys.
+- `allow_bits` (String) Allowed permissions as a decimal bitfield.
+- `deny` (Set of String) Denied permission keys.
+- `deny_bits` (String) Denied permissions as a decimal bitfield.
