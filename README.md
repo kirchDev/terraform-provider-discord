@@ -64,6 +64,7 @@ The bot must be a member of every guild you manage, with the permissions for wha
 - **💬 Discord as code** — roles, channels, permission overwrites, members, webhooks, invites, events and moderation in HCL.
 - **🧩 Broad API coverage** — ~24 resources + 9 data sources across the guild-management surface.
 - **🔐 Ergonomic permissions** — the `discord_permission` data source turns named permission keys into the decimal bitfields Discord wants.
+- **🔒 Exhaustive channel permissions** — a channel's `permissions` attribute declares every role and member overwrite by permission key and reports out-of-band changes as drift.
 - **🚦 Rate-limit aware** — the client transparently honours `429` `retry_after` and retries transient errors.
 - **🚀 OpenTofu & Terraform** — published as `kirchdev/discord` on both registries.
 - **⚡ Modern stack** — `terraform-plugin-framework`; docs generated from the schema.

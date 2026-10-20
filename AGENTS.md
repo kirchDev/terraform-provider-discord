@@ -1,18 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents when working with code in this repository.
 
 ## Agent instruction files
 
-`CLAUDE.md` and `AGENTS.md` are kept **byte-identical**. `CLAUDE.md` is what Claude Code reads; `AGENTS.md` is what vendor-neutral agent tools read — Codex, OpenCode, Cursor, Copilot, and whatever follows them. Two real files, deliberately not a symlink: not every tool resolves one.
-
-**After editing either file, copy it over the other — don't repeat the edit by hand:**
-
-```bash
-cp CLAUDE.md AGENTS.md   # or the reverse, whichever you just edited
-```
-
-Retyping a change is exactly how the two drift; one reflowed line or reworded clause is enough. `diff CLAUDE.md AGENTS.md` must print nothing. If it ever does, treat it as a defect and fix it by letting one file win wholesale — never by merging them.
+`AGENTS.md` is the single instruction file; Claude Code (2.1.277+) and the vendor-neutral agent tools (Codex, OpenCode, Cursor, Copilot) all read it. There is deliberately no `CLAUDE.md`.
 
 ## What this repo is
 
@@ -71,6 +63,7 @@ Node meta layer: `pnpm install` (wires husky hooks), `pnpm check` / `pnpm check:
 - **`discord_role_everyone.id == server_id`** (the @everyone role id is the guild id).
 - **Role position** has its own endpoint (modify-role-positions, a `[{id, position}]` PATCH on the guild role collection) — not the role-modify body.
 - **`sync_perms_with_category`** copies the parent category's overwrites onto the channel; it conflicts with explicit `discord_channel_permission` overwrites on the same channel (own them one way or the other).
+- **`permissions` on channel resources** is the exhaustive form of channel overwrites (attribute on every channel kind; computed on the channel data sources). It conflicts with `discord_channel_permission` and `sync_perms_with_category = true` on the same channel — own the overwrites one way only.
 - **`discord_member_roles`** is authoritative (owns the member's full role set minus `@everyone`); it reads the live `roles` array back on every Read for accurate drift detection.
 - **Deeply-nested config** (`discord_server_onboarding` prompts, `discord_application_command` options) is passed through as raw JSON in a `*_json` attribute — write-only, not refreshed.
 - **Images** (guild icon/splash, emoji, webhook avatar) are base64 **data URIs** via `*_data_uri` attributes — build them with the `discord_local_image` data source. They're write-only; Discord returns only hashes (`icon_hash`, …).
