@@ -1,12 +1,15 @@
 package provider
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 func TestBitsToKeys(t *testing.T) {
@@ -58,6 +61,26 @@ func TestNamedUnknownKey(t *testing.T) {
 		if got := namedUnknownKey(k); got != want {
 			t.Errorf("namedUnknownKey(%q) = %q, want %q", k, got, want)
 		}
+	}
+}
+
+func TestApplyLivePermissionsKeepsEquivalentSpelling(t *testing.T) {
+	entry := types.ObjectValueMust(overwriteEntryType.AttrTypes, map[string]attr.Value{
+		"allow":      types.SetValueMust(types.StringType, []attr.Value{types.StringValue("unknown_10")}),
+		"allow_bits": types.StringUnknown(),
+		"deny":       types.SetNull(types.StringType),
+		"deny_bits":  types.StringNull(),
+	})
+	perms := types.ObjectValueMust(channelPermissionsObjectType.AttrTypes, map[string]attr.Value{
+		"role_overwrites": types.MapValueMust(overwriteEntryType, map[string]attr.Value{"1": entry}),
+		"user_overwrites": types.MapValueMust(overwriteEntryType, map[string]attr.Value{}),
+	})
+	if err := applyLivePermissions(&perms, []permissionOverwrite{{ID: "1", Allow: "1024", Deny: "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	got := perms.Attributes()["role_overwrites"].(types.Map).Elements()["1"].(types.Object).Attributes()["allow"]
+	if want := types.SetValueMust(types.StringType, []attr.Value{types.StringValue("unknown_10")}); !got.Equal(want) {
+		t.Errorf("allow = %v, want %v", got, want)
 	}
 }
 
@@ -138,5 +161,52 @@ func TestPermissionsFromNoOverwritesIsEmptyNotNull(t *testing.T) {
 		if m.IsNull() || len(m.Elements()) != 0 {
 			t.Errorf("%s = %v, want empty non-null map", name, m)
 		}
+	}
+}
+
+func TestApplyLivePermissionsLeavesNullAlone(t *testing.T) {
+	perms := types.ObjectNull(channelPermissionsObjectType.AttrTypes)
+	if err := applyLivePermissions(&perms, []permissionOverwrite{{ID: "1", Allow: "1", Deny: "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !perms.IsNull() {
+		t.Error("null permissions were populated")
+	}
+}
+
+const permsChannel = "discord_text_channel.test"
+
+func permsCfg(permissions string) string {
+	return fmt.Sprintf(`
+resource "discord_text_channel" "test" {
+  server_id = "999"
+  name      = "private"
+  %s
+}
+`, permissions)
+}
+
+// checkOverwrites asserts the mock's live overwrites for the channel in state.
+func checkOverwrites(m *mockDiscord, rn string, want ...permissionOverwrite) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[rn]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", rn)
+		}
+		got := m.channelOverwrites(rs.Primary.ID)
+		if len(got) == 0 && len(want) == 0 {
+			return nil
+		}
+		if !reflect.DeepEqual(got, want) {
+			return fmt.Errorf("live overwrites = %+v, want %+v", got, want)
+		}
+		return nil
+	}
+}
+
+// seedFromState replaces the live overwrites of the test channel out of band.
+func seedFromState(m *mockDiscord, overwrites ...permissionOverwrite) func() {
+	return func() {
+		m.seedOverwrites(m.channelIDByName("private"), overwrites...)
 	}
 }
