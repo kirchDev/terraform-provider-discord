@@ -30,8 +30,38 @@ resource "discord_category_channel" "general" {
 
 ### Optional
 
+- `permissions` (Attributes) The channel's permission overwrites, exhaustively: when set, any live overwrite not declared here is removed on apply and reported as drift on plan. Omit to leave overwrites unmanaged. Don't combine with `discord_channel_permission` on the same channel. Unlike `discord_channel_permission`, `allow`/`deny` here are sets of permission keys; use `allow_bits`/`deny_bits` for decimal strings. (see [below for nested schema](#nestedatt--permissions))
 - `position` (Number) Sorting position of the channel.
 
 ### Read-Only
 
 - `id` (String) Snowflake ID of the channel.
+
+<a id="nestedatt--permissions"></a>
+### Nested Schema for `permissions`
+
+Optional:
+
+- `role_overwrites` (Attributes Map) Overwrites for roles, keyed by snowflake. Unset means none. (see [below for nested schema](#nestedatt--permissions--role_overwrites))
+- `user_overwrites` (Attributes Map) Overwrites for users, keyed by snowflake. Unset means none. (see [below for nested schema](#nestedatt--permissions--user_overwrites))
+
+<a id="nestedatt--permissions--role_overwrites"></a>
+### Nested Schema for `permissions.role_overwrites`
+
+Optional:
+
+- `allow` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `allow_bits` (String) The `allow` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny_bits` (String) The `deny` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+
+
+<a id="nestedatt--permissions--user_overwrites"></a>
+### Nested Schema for `permissions.user_overwrites`
+
+Optional:
+
+- `allow` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `allow_bits` (String) The `allow` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny_bits` (String) The `deny` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.

@@ -44,6 +44,7 @@ type voiceChannelResourceModel struct {
 	RTCRegion             types.String `tfsdk:"rtc_region"`
 	NSFW                  types.Bool   `tfsdk:"nsfw"`
 	SyncPermsWithCategory types.Bool   `tfsdk:"sync_perms_with_category"`
+	Permissions           types.Object `tfsdk:"permissions"`
 }
 
 func (r *voiceChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -113,6 +114,7 @@ func (r *voiceChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
+			"permissions": channelPermissionsAttribute(),
 		},
 	}
 }
@@ -165,8 +167,12 @@ func (r *voiceChannelResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
 	var created channelAttributes
-	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), r.body(&plan), &created); err != nil {
+	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), body, &created); err != nil {
 		resp.Diagnostics.AddError("Unable to create Discord voice channel", err.Error())
 		return
 	}
@@ -210,7 +216,11 @@ func (r *voiceChannelResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), r.body(&plan), nil); err != nil {
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
+	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), body, nil); err != nil {
 		resp.Diagnostics.AddError("Unable to update Discord voice channel", err.Error())
 		return
 	}
@@ -260,5 +270,5 @@ func (r *voiceChannelResource) readInto(ctx context.Context, m *voiceChannelReso
 	m.UserLimit = types.Int64Value(a.UserLimit)
 	m.RTCRegion = types.StringPointerValue(a.RTCRegion)
 	m.NSFW = types.BoolValue(a.NSFW)
-	return nil
+	return applyLivePermissions(&m.Permissions, a.PermissionOverwrites)
 }

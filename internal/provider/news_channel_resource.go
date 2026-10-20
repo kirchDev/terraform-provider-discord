@@ -42,6 +42,7 @@ type newsChannelResourceModel struct {
 	Position                   types.Int64  `tfsdk:"position"`
 	DefaultAutoArchiveDuration types.Int64  `tfsdk:"default_auto_archive_duration"`
 	SyncPermsWithCategory      types.Bool   `tfsdk:"sync_perms_with_category"`
+	Permissions                types.Object `tfsdk:"permissions"`
 }
 
 func (r *newsChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -99,6 +100,7 @@ func (r *newsChannelResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
+			"permissions": channelPermissionsAttribute(),
 		},
 	}
 }
@@ -145,8 +147,12 @@ func (r *newsChannelResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
 	var created channelAttributes
-	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), r.body(&plan), &created); err != nil {
+	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), body, &created); err != nil {
 		resp.Diagnostics.AddError("Unable to create Discord news channel", err.Error())
 		return
 	}
@@ -190,7 +196,11 @@ func (r *newsChannelResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), r.body(&plan), nil); err != nil {
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
+	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), body, nil); err != nil {
 		resp.Diagnostics.AddError("Unable to update Discord news channel", err.Error())
 		return
 	}
@@ -238,5 +248,5 @@ func (r *newsChannelResource) readInto(ctx context.Context, m *newsChannelResour
 	m.NSFW = types.BoolValue(a.NSFW)
 	m.Position = types.Int64Value(a.Position)
 	m.DefaultAutoArchiveDuration = types.Int64Value(a.DefaultAutoArchiveDuration)
-	return nil
+	return applyLivePermissions(&m.Permissions, a.PermissionOverwrites)
 }

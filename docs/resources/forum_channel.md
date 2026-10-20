@@ -69,6 +69,7 @@ resource "discord_forum_channel" "help" {
 - `default_sort_order` (Number) Default sort order of posts (`0` latest activity, `1` creation date).
 - `default_thread_rate_limit_per_user` (Number) Default slowmode (seconds) for new posts in the forum.
 - `nsfw` (Boolean) Whether the channel is age-restricted.
+- `permissions` (Attributes) The channel's permission overwrites, exhaustively: when set, any live overwrite not declared here is removed on apply and reported as drift on plan. Omit to leave overwrites unmanaged. Don't combine with `discord_channel_permission` on the same channel. Unlike `discord_channel_permission`, `allow`/`deny` here are sets of permission keys; use `allow_bits`/`deny_bits` for decimal strings. (see [below for nested schema](#nestedatt--permissions))
 - `position` (Number) Sorting position of the channel.
 - `require_tag` (Boolean) Whether a post created in the forum must carry at least one tag (the `REQUIRE_TAG` channel flag). Only that bit of the channel's `flags` is written; every other flag is left as Discord has it. Omit it to leave the setting unmanaged — it is still read, so a toggle made by hand in the Discord client shows up as drift once you set it. While it is `true`, a `discord_forum_post` into this forum must set at least one entry in `tags`, or Discord rejects the create.
 - `sync_perms_with_category` (Boolean) When true, the channel's permission overwrites are synced to its parent category on create/update.
@@ -95,3 +96,33 @@ Optional:
 Read-Only:
 
 - `id` (String) Snowflake ID of the tag, assigned by Discord.
+
+
+<a id="nestedatt--permissions"></a>
+### Nested Schema for `permissions`
+
+Optional:
+
+- `role_overwrites` (Attributes Map) Overwrites for roles, keyed by snowflake. Unset means none. (see [below for nested schema](#nestedatt--permissions--role_overwrites))
+- `user_overwrites` (Attributes Map) Overwrites for users, keyed by snowflake. Unset means none. (see [below for nested schema](#nestedatt--permissions--user_overwrites))
+
+<a id="nestedatt--permissions--role_overwrites"></a>
+### Nested Schema for `permissions.role_overwrites`
+
+Optional:
+
+- `allow` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `allow_bits` (String) The `allow` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny_bits` (String) The `deny` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+
+
+<a id="nestedatt--permissions--user_overwrites"></a>
+### Nested Schema for `permissions.user_overwrites`
+
+Optional:
+
+- `allow` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `allow_bits` (String) The `allow` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny` (Set of String) Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for. Either form may be set alone and the other is computed; if both are set they must be equivalent.
+- `deny_bits` (String) The `deny` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.
