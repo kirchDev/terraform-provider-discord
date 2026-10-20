@@ -24,7 +24,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		// OpenTofu registry address — see CLAUDE.md.
+		// OpenTofu registry address — see AGENTS.md.
 		Address: "registry.opentofu.org/kirchdev/discord",
 		Debug:   debug,
 	}
