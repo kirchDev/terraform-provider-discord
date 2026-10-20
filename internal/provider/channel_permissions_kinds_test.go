@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -47,4 +48,48 @@ resource "discord_text_channel" "test" {
 			{Config: cfg, PlanOnly: true},
 		},
 	})
+}
+
+// Kinds sharing one create-then-drift shape; text and category have their own deeper tests.
+func TestAccChannelPermissions_CreateAndDriftOtherKinds(t *testing.T) {
+	for _, kind := range []string{"voice", "news", "stage", "forum", "media"} {
+		t.Run(kind, func(t *testing.T) {
+			m := newMockDiscord(t)
+			rn := "discord_" + kind + "_channel.test"
+			cfg := `
+resource "discord_` + kind + `_channel" "test" {
+  server_id   = "999"
+  name        = "private"
+  permissions = { role_overwrites = { "300" = { allow = ["view_channel"] } } }
+}
+`
+			want := permissionOverwrite{ID: "300", Type: 0, Allow: "1024", Deny: "0"}
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+				Steps: []resource.TestStep{
+					{
+						Config: cfg,
+						Check: resource.ComposeAggregateTestCheckFunc(
+							resource.TestCheckResourceAttr(rn, "permissions.role_overwrites.300.allow_bits", "1024"),
+							checkOverwrites(m, rn, want),
+							func(*terraform.State) error {
+								if _, ok := m.lastChannelPost()["permission_overwrites"]; !ok {
+									return fmt.Errorf("create POST carried no permission_overwrites: %v", m.lastChannelPost())
+								}
+								return nil
+							},
+						),
+					},
+					{
+						PreConfig: seedFromState(m, permissionOverwrite{ID: "300", Type: 0, Allow: "1025", Deny: "0"},
+							permissionOverwrite{ID: "600", Type: 1, Allow: "0", Deny: "2048"}),
+						Config:             cfg,
+						PlanOnly:           true,
+						ExpectNonEmptyPlan: true,
+					},
+					{Config: cfg, Check: checkOverwrites(m, rn, want)},
+				},
+			})
+		})
+	}
 }

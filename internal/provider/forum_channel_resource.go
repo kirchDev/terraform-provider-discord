@@ -93,6 +93,7 @@ type forumChannelWire struct {
 	AvailableTags                 []forumTagWire            `json:"available_tags"`
 	DefaultThreadRateLimitPerUser int64                     `json:"default_thread_rate_limit_per_user"`
 	Flags                         int64                     `json:"flags"`
+	PermissionOverwrites          []permissionOverwrite     `json:"permission_overwrites"`
 }
 
 type forumChannelResourceModel struct {
@@ -111,6 +112,7 @@ type forumChannelResourceModel struct {
 	DefaultThreadRateLimitPerUser types.Int64  `tfsdk:"default_thread_rate_limit_per_user"`
 	SyncPermsWithCategory         types.Bool   `tfsdk:"sync_perms_with_category"`
 	RequireTag                    types.Bool   `tfsdk:"require_tag"`
+	Permissions                   types.Object `tfsdk:"permissions"`
 }
 
 func (r *forumChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -216,6 +218,7 @@ func (r *forumChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed:      true,
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
+			"permissions": channelPermissionsAttribute(),
 		},
 	}
 }
@@ -309,6 +312,9 @@ func (r *forumChannelResource) Create(ctx context.Context, req resource.CreateRe
 		resp.Diagnostics.AddError("Invalid forum channel configuration", berr[0].Error())
 		return
 	}
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
 	var created forumChannelWire
 	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), body, &created); err != nil {
 		resp.Diagnostics.AddError("Unable to create Discord forum channel", err.Error())
@@ -369,6 +375,9 @@ func (r *forumChannelResource) Update(ctx context.Context, req resource.UpdateRe
 	body := r.body(ctx, &plan, &berr)
 	if len(berr) > 0 {
 		resp.Diagnostics.AddError("Invalid forum channel configuration", berr[0].Error())
+		return
+	}
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
 		return
 	}
 	// flags is a whole bitfield: read the live value so only REQUIRE_TAG changes.
@@ -469,5 +478,5 @@ func (r *forumChannelResource) readInto(ctx context.Context, m *forumChannelReso
 		return fmt.Errorf("building available_tags state: %v", d.Errors())
 	}
 	m.AvailableTags = list
-	return nil
+	return applyLivePermissions(&m.Permissions, a.PermissionOverwrites)
 }

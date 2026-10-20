@@ -43,6 +43,7 @@ type stageChannelResourceModel struct {
 	UserLimit             types.Int64  `tfsdk:"user_limit"`
 	RTCRegion             types.String `tfsdk:"rtc_region"`
 	SyncPermsWithCategory types.Bool   `tfsdk:"sync_perms_with_category"`
+	Permissions           types.Object `tfsdk:"permissions"`
 }
 
 func (r *stageChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -106,6 +107,7 @@ func (r *stageChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
+			"permissions": channelPermissionsAttribute(),
 		},
 	}
 }
@@ -155,8 +157,12 @@ func (r *stageChannelResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
 	var created channelAttributes
-	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), r.body(&plan), &created); err != nil {
+	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), body, &created); err != nil {
 		resp.Diagnostics.AddError("Unable to create Discord stage channel", err.Error())
 		return
 	}
@@ -200,7 +206,11 @@ func (r *stageChannelResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), r.body(&plan), nil); err != nil {
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
+	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), body, nil); err != nil {
 		resp.Diagnostics.AddError("Unable to update Discord stage channel", err.Error())
 		return
 	}
@@ -249,5 +259,5 @@ func (r *stageChannelResource) readInto(ctx context.Context, m *stageChannelReso
 	m.VideoQualityMode = types.Int64Value(a.VideoQualityMode)
 	m.UserLimit = types.Int64Value(a.UserLimit)
 	m.RTCRegion = types.StringPointerValue(a.RTCRegion)
-	return nil
+	return applyLivePermissions(&m.Permissions, a.PermissionOverwrites)
 }
