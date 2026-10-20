@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -379,6 +381,39 @@ func (overwriteEntryValidator) ValidateObject(_ context.Context, req validator.O
 			resp.Diagnostics.AddAttributeError(req.Path, "Conflicting permission overwrite",
 				fmt.Sprintf("Permissions %s are both allowed and denied.", strings.Join(bitsToKeys(both), ", ")))
 		}
+	}
+}
+
+// channelPermissionsConfigValidators rejects `permissions` together with an
+// explicit sync_perms_with_category = true; safe on kinds without the latter.
+func channelPermissionsConfigValidators() []resource.ConfigValidator {
+	return []resource.ConfigValidator{syncConflictValidator{}}
+}
+
+type syncConflictValidator struct{}
+
+func (syncConflictValidator) Description(context.Context) string {
+	return "permissions cannot be combined with sync_perms_with_category = true."
+}
+func (v syncConflictValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (syncConflictValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	syncPath := path.Root("sync_perms_with_category")
+	if _, d := req.Config.Schema.AttributeAtPath(ctx, syncPath); d.HasError() {
+		return
+	}
+	var sync types.Bool
+	var perms types.Object
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, syncPath, &sync)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("permissions"), &perms)...)
+	if resp.Diagnostics.HasError() || sync.IsNull() || sync.IsUnknown() || perms.IsNull() {
+		return
+	}
+	if sync.ValueBool() {
+		resp.Diagnostics.AddAttributeError(path.Root("permissions"), "Conflicting attributes",
+			"permissions cannot be set together with sync_perms_with_category = true: syncing overwrites the declared permissions.")
 	}
 }
 

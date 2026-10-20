@@ -2,11 +2,36 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+// Each kind wires the sync conflict validator itself; a dropped ConfigValidators method would otherwise go unnoticed.
+func TestAccChannelPermissions_SyncConflictAllKinds(t *testing.T) {
+	newMockDiscord(t)
+	for _, kind := range []string{"text", "voice", "news", "stage", "forum", "media"} {
+		t.Run(kind, func(t *testing.T) {
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+				Steps: []resource.TestStep{{
+					Config: `
+resource "discord_` + kind + `_channel" "test" {
+  server_id                = "999"
+  name                     = "private"
+  sync_perms_with_category = true
+  permissions              = { role_overwrites = { "1" = { allow = ["view_channel"] } } }
+}
+`,
+					PlanOnly:    true,
+					ExpectError: regexp.MustCompile(`Conflicting attributes`),
+				}},
+			})
+		})
+	}
+}
 
 // Unknown allow/allow_bits values (not whole maps) must pass validation and be recomputed on apply.
 func TestAccTextChannelPermissions_UnknownElementAtPlan(t *testing.T) {

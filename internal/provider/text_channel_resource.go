@@ -23,9 +23,10 @@ import (
 // (/channels/{id}) for read/update/delete and created under their guild. ---
 
 var (
-	_ resource.Resource                = (*textChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*textChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*textChannelResource)(nil)
+	_ resource.Resource                     = (*textChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*textChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*textChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*textChannelResource)(nil)
 )
 
 // NewTextChannelResource returns a new discord_text_channel resource.
@@ -116,6 +117,10 @@ func (r *textChannelResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *textChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 func (r *textChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

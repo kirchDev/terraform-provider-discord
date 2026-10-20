@@ -259,6 +259,11 @@ func TestAccTextChannelPermissions_Validation(t *testing.T) {
 			`permissions = { role_overwrites = { "1" = { allow_bits = "18446744073709551616" } } }`,
 			`Invalid permission bitfield`,
 		},
+		"sync conflict": {
+			`sync_perms_with_category = true
+  permissions = { role_overwrites = { "1" = { allow = ["view_channel"] } } }`,
+			`Conflicting attributes`,
+		},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

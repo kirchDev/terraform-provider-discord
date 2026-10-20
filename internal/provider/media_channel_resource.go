@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*mediaChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*mediaChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*mediaChannelResource)(nil)
+	_ resource.Resource                     = (*mediaChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*mediaChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*mediaChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*mediaChannelResource)(nil)
 )
 
 // NewMediaChannelResource returns a new discord_media_channel resource.
@@ -101,6 +102,10 @@ func (r *mediaChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *mediaChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 func (r *mediaChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

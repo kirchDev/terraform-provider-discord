@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*stageChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*stageChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*stageChannelResource)(nil)
+	_ resource.Resource                     = (*stageChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*stageChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*stageChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*stageChannelResource)(nil)
 )
 
 // NewStageChannelResource returns a new discord_stage_channel resource.
@@ -110,6 +111,10 @@ func (r *stageChannelResource) Schema(_ context.Context, _ resource.SchemaReques
 			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *stageChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 func (r *stageChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
