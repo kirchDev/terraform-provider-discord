@@ -44,7 +44,7 @@ Two layers coexist:
 
 ## Commands
 
-Go (via `GNUmakefile`; needs **Go ≥ 1.27** — `go.mod` sets `go 1.27.0`; `golang.org/x/net` and friends need at least 1.26). `go.mod` also pins `toolchain go1.27.2`: `setup-go` in CI and the release reads that line, and builds with an older 1.27 patch could ship a standard library with since-fixed vulnerabilities. Raise it when a newer Go patch fixes the standard library; keep it at a version the local `golangci-lint` was built with or newer, and one the CI `golangci-lint` (the `_ci-go.yml` default in `kirchDev/workflows`, v2.14.0 since v0.14.1) supports.
+Go (via `GNUmakefile`; needs **Go ≥ 1.27** — `go.mod` sets `go 1.27.0`; `golang.org/x/net` and friends need at least 1.26). `go.mod` also pins `toolchain go1.27.3`: `setup-go` in CI and the release reads that line, and builds with an older 1.27 patch could ship a standard library with since-fixed vulnerabilities. Raise it when a newer Go patch fixes the standard library; keep it at a version the local `golangci-lint` was built with or newer, and one the CI `golangci-lint` (the `_ci-go.yml` default in `kirchDev/workflows`, v2.14.0 since v0.14.1) supports.
 
 | Command        | What it does                                                                  |
 | :------------- | :---------------------------------------------------------------------------- |

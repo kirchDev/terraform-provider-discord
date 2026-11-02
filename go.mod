@@ -2,7 +2,7 @@ module github.com/kirchDev/terraform-provider-discord
 
 go 1.27.0
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	// Run `go mod tidy` after editing direct dependencies to refresh the indirect
