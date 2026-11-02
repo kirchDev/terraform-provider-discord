@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.3...v0.11.0) (2026-11-02)
+
+
+### Features
+
+* **channel-perms:** manage a channel's permission overwrites exhaustively ([c88ab67](https://github.com/kirchDev/terraform-provider-discord/commit/c88ab67e4bb1f0fb0091dd6e7ed3e51b3bc0b454))
+
+
+### Bug Fixes
+
+* **deps:** move to go 1.27.3 to close GO-2026-6809 ([e66b2cc](https://github.com/kirchDev/terraform-provider-discord/commit/e66b2cc2966e322c6d6b62b03cff72dc887b9e69))
+* **deps:** update the go modules within their minor ([33e0745](https://github.com/kirchDev/terraform-provider-discord/commit/33e0745a9ff4dc0dd59e494d5226bd3ffe22b147))
+
 ## [0.10.3](https://github.com/kirchDev/terraform-provider-discord/compare/v0.10.2...v0.10.3) (2026-10-12)
 
 
