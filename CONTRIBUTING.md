@@ -55,8 +55,9 @@ The same commands run in CI — keep them green before you push.
    - `docs(readme): document the provider config block`
    - `chore(deps): bump terraform-plugin-framework`
    - Breaking changes: `feat!: ...` or include `BREAKING CHANGE:` in the body.
-3. **One concern per PR.** Smaller PRs land faster.
-4. **Update relevant docs.** README, CONTRIBUTING, or resource docs if you change behaviour.
+3. **Signed commits required.** `dev` and `main` only accept commits with a verified signature (GPG or SSH) — see GitHub's guide to [signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits). To sign commits you already made, run `git rebase --exec 'git commit --amend --no-edit -S' <base>` and force-push.
+4. **One concern per PR.** Smaller PRs land faster.
+5. **Update relevant docs.** README, CONTRIBUTING, or resource docs if you change behaviour.
 
 ## Style & quality gates
 
