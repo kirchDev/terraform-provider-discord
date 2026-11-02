@@ -39,6 +39,8 @@ type channelListModel struct {
 	Type     types.Int64  `tfsdk:"type"`
 	Position types.Int64  `tfsdk:"position"`
 	NSFW     types.Bool   `tfsdk:"nsfw"`
+
+	Permissions types.Object `tfsdk:"permissions"`
 }
 
 var channelListAttrTypes = map[string]attr.Type{
@@ -49,6 +51,8 @@ var channelListAttrTypes = map[string]attr.Type{
 	"type":      types.Int64Type,
 	"position":  types.Int64Type,
 	"nsfw":      types.BoolType,
+
+	"permissions": channelPermissionsObjectType,
 }
 
 // channelListWire is one channel element as returned by the API. name, topic and
@@ -61,6 +65,8 @@ type channelListWire struct {
 	Type     int64   `json:"type"`
 	Position int64   `json:"position"`
 	NSFW     bool    `json:"nsfw"`
+
+	PermissionOverwrites []permissionOverwrite `json:"permission_overwrites"`
 }
 
 type channelsDataSourceModel struct {
@@ -82,13 +88,14 @@ func (d *channelsDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Computed:            true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":        schema.StringAttribute{MarkdownDescription: "Snowflake ID of the channel.", Computed: true},
-						"name":      schema.StringAttribute{MarkdownDescription: "Channel name.", Computed: true},
-						"topic":     schema.StringAttribute{MarkdownDescription: "Channel topic.", Computed: true},
-						"parent_id": schema.StringAttribute{MarkdownDescription: "Snowflake ID of the parent category.", Computed: true},
-						"type":      schema.Int64Attribute{MarkdownDescription: "Channel type.", Computed: true},
-						"position":  schema.Int64Attribute{MarkdownDescription: "Sorting position of the channel.", Computed: true},
-						"nsfw":      schema.BoolAttribute{MarkdownDescription: "Whether the channel is age-restricted.", Computed: true},
+						"id":          schema.StringAttribute{MarkdownDescription: "Snowflake ID of the channel.", Computed: true},
+						"name":        schema.StringAttribute{MarkdownDescription: "Channel name.", Computed: true},
+						"topic":       schema.StringAttribute{MarkdownDescription: "Channel topic.", Computed: true},
+						"parent_id":   schema.StringAttribute{MarkdownDescription: "Snowflake ID of the parent category.", Computed: true},
+						"type":        schema.Int64Attribute{MarkdownDescription: "Channel type.", Computed: true},
+						"position":    schema.Int64Attribute{MarkdownDescription: "Sorting position of the channel.", Computed: true},
+						"nsfw":        schema.BoolAttribute{MarkdownDescription: "Whether the channel is age-restricted.", Computed: true},
+						"permissions": channelPermissionsDataSourceAttribute(),
 					},
 				},
 			},
@@ -128,6 +135,11 @@ func (d *channelsDataSource) Read(ctx context.Context, req datasource.ReadReques
 			resp.Diagnostics.AddError("Unable to decode Discord channel", err.Error())
 			return
 		}
+		perms, err := permissionsFromOverwrites(w.PermissionOverwrites)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to read Discord channel permissions", err.Error())
+			return
+		}
 		models = append(models, channelListModel{
 			ID:       types.StringValue(w.ID),
 			Name:     types.StringPointerValue(w.Name),
@@ -136,6 +148,8 @@ func (d *channelsDataSource) Read(ctx context.Context, req datasource.ReadReques
 			Type:     types.Int64Value(w.Type),
 			Position: types.Int64Value(w.Position),
 			NSFW:     types.BoolValue(w.NSFW),
+
+			Permissions: perms,
 		})
 	}
 

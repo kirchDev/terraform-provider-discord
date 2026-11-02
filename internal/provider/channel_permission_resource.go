@@ -50,7 +50,7 @@ func (r *channelPermissionResource) Metadata(_ context.Context, req resource.Met
 
 func (r *channelPermissionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a single permission overwrite on a Discord channel for one role or member.",
+		MarkdownDescription: "Manages a single permission overwrite on a Discord channel for one role or member. Don't combine with the channel resource's exhaustive `permissions` attribute on the same channel: `permissions` removes any overwrite it doesn't declare and this resource writes it back, causing perpetual drift. `allow`/`deny` here are decimal bitfield strings; `permissions` uses sets of permission keys.",
 		Attributes: map[string]schema.Attribute{
 			"channel_id": schema.StringAttribute{
 				MarkdownDescription: "Snowflake ID of the channel.",

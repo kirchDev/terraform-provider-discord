@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*categoryChannelResource)(nil)
-	_ resource.ResourceWithConfigure   = (*categoryChannelResource)(nil)
-	_ resource.ResourceWithImportState = (*categoryChannelResource)(nil)
+	_ resource.Resource                     = (*categoryChannelResource)(nil)
+	_ resource.ResourceWithConfigure        = (*categoryChannelResource)(nil)
+	_ resource.ResourceWithImportState      = (*categoryChannelResource)(nil)
+	_ resource.ResourceWithConfigValidators = (*categoryChannelResource)(nil)
 )
 
 // NewCategoryChannelResource returns a new discord_category_channel resource.
@@ -35,6 +36,8 @@ type categoryChannelResourceModel struct {
 	ID       types.String `tfsdk:"id"`
 	Name     types.String `tfsdk:"name"`
 	Position types.Int64  `tfsdk:"position"`
+
+	Permissions types.Object `tfsdk:"permissions"`
 }
 
 func (r *categoryChannelResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -65,8 +68,13 @@ func (r *categoryChannelResource) Schema(_ context.Context, _ resource.SchemaReq
 				Computed:            true,
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
+			"permissions": channelPermissionsAttribute(),
 		},
 	}
+}
+
+func (r *categoryChannelResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return channelPermissionsConfigValidators()
 }
 
 func (r *categoryChannelResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -96,8 +104,12 @@ func (r *categoryChannelResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
 	var created channelAttributes
-	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), r.body(&plan), &created); err != nil {
+	if err := r.client.Write(ctx, "POST", guildChannelsPath(plan.ServerID.ValueString()), body, &created); err != nil {
 		resp.Diagnostics.AddError("Unable to create Discord category channel", err.Error())
 		return
 	}
@@ -134,7 +146,11 @@ func (r *categoryChannelResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), r.body(&plan), nil); err != nil {
+	body := r.body(&plan)
+	if setPermissionOverwrites(body, plan.Permissions, &resp.Diagnostics) {
+		return
+	}
+	if err := r.client.Write(ctx, "PATCH", channelPath(plan.ID.ValueString()), body, nil); err != nil {
 		resp.Diagnostics.AddError("Unable to update Discord category channel", err.Error())
 		return
 	}
@@ -172,5 +188,5 @@ func (r *categoryChannelResource) readInto(ctx context.Context, m *categoryChann
 	}
 	m.Name = types.StringPointerValue(a.Name)
 	m.Position = types.Int64Value(a.Position)
-	return nil
+	return applyLivePermissions(&m.Permissions, a.PermissionOverwrites)
 }

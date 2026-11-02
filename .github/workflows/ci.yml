@@ -21,8 +21,10 @@ permissions:
 jobs:
   check:
     name: CI
-    uses: kirchDev/workflows/.github/workflows/_ci-check.yml@8501fb7674d6978553223b78fd0f2cc4e4598919 # v0.14.1
+    uses: kirchDev/workflows/.github/workflows/_ci-check.yml@1d7a1746b99aa4e6c717d044f37ea98d3a8f6bfc # v0.18.0
+    with:
+      node-version: '26'
 
   go:
     name: Go
-    uses: kirchDev/workflows/.github/workflows/_ci-go.yml@8501fb7674d6978553223b78fd0f2cc4e4598919 # v0.14.1
+    uses: kirchDev/workflows/.github/workflows/_ci-go.yml@1d7a1746b99aa4e6c717d044f37ea98d3a8f6bfc # v0.18.0

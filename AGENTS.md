@@ -44,7 +44,7 @@ Two layers coexist:
 
 ## Commands
 
-Go (via `GNUmakefile`; needs **Go ≥ 1.27** — `go.mod` sets `go 1.27.0`; `golang.org/x/net` and friends need at least 1.26). `go.mod` also pins `toolchain go1.27.2`: `setup-go` in CI and the release reads that line, and builds with an older 1.27 patch could ship a standard library with since-fixed vulnerabilities. Raise it when a newer Go patch fixes the standard library; keep it at a version the local `golangci-lint` was built with or newer, and one the CI `golangci-lint` (the `_ci-go.yml` default in `kirchDev/workflows`, v2.14.0 since v0.14.1) supports.
+Go (via `GNUmakefile`; needs **Go ≥ 1.27** — `go.mod` sets `go 1.27.0`; `golang.org/x/net` and friends need at least 1.26). `go.mod` also pins `toolchain go1.27.3`: `setup-go` in CI and the release reads that line, and builds with an older 1.27 patch could ship a standard library with since-fixed vulnerabilities. Raise it when a newer Go patch fixes the standard library; keep it at a version the local `golangci-lint` was built with or newer, and one the CI `golangci-lint` (the `_ci-go.yml` default in `kirchDev/workflows`, v2.14.0 since v0.14.1) supports.
 
 | Command        | What it does                                                                  |
 | :------------- | :---------------------------------------------------------------------------- |
@@ -71,6 +71,7 @@ Node meta layer: `pnpm install` (wires husky hooks), `pnpm check` / `pnpm check:
 - **`discord_role_everyone.id == server_id`** (the @everyone role id is the guild id).
 - **Role position** has its own endpoint (modify-role-positions, a `[{id, position}]` PATCH on the guild role collection) — not the role-modify body.
 - **`sync_perms_with_category`** copies the parent category's overwrites onto the channel; it conflicts with explicit `discord_channel_permission` overwrites on the same channel (own them one way or the other).
+- **`permissions` on channel resources** is the exhaustive form of channel overwrites (attribute on every channel kind; computed on the channel data sources). It conflicts with `discord_channel_permission` and `sync_perms_with_category = true` on the same channel — own the overwrites one way only.
 - **`discord_member_roles`** is authoritative (owns the member's full role set minus `@everyone`); it reads the live `roles` array back on every Read for accurate drift detection.
 - **Deeply-nested config** (`discord_server_onboarding` prompts, `discord_application_command` options) is passed through as raw JSON in a `*_json` attribute — write-only, not refreshed.
 - **Images** (guild icon/splash, emoji, webhook avatar) are base64 **data URIs** via `*_data_uri` attributes — build them with the `discord_local_image` data source. They're write-only; Discord returns only hashes (`icon_hash`, …).
