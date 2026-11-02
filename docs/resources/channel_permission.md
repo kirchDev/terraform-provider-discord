@@ -3,12 +3,12 @@
 page_title: "discord_channel_permission Resource - discord"
 subcategory: ""
 description: |-
-  Manages a single permission overwrite on a Discord channel for one role or member.
+  Manages a single permission overwrite on a Discord channel for one role or member. Don't combine with the channel resource's exhaustive permissions attribute on the same channel: permissions removes any overwrite it doesn't declare and this resource writes it back, causing perpetual drift. allow/deny here are decimal bitfield strings; permissions uses sets of permission keys.
 ---
 
 # discord_channel_permission (Resource)
 
-Manages a single permission overwrite on a Discord channel for one role or member.
+Manages a single permission overwrite on a Discord channel for one role or member. Don't combine with the channel resource's exhaustive `permissions` attribute on the same channel: `permissions` removes any overwrite it doesn't declare and this resource writes it back, causing perpetual drift. `allow`/`deny` here are decimal bitfield strings; `permissions` uses sets of permission keys.
 
 ## Example Usage
 

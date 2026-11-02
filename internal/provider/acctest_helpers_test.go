@@ -58,6 +58,7 @@ type mockDiscord struct {
 	// channelPatches records every PATCH /channels/{id} body per channel, so a test
 	// can assert on what the provider sent rather than on what landed in state.
 	channelPatches map[string][]map[string]any
+	channelPosts   []map[string]any
 }
 
 func newMockDiscord(t *testing.T) *mockDiscord {
@@ -157,6 +158,52 @@ func (m *mockDiscord) seedForumChannel(id, guildID, name string, tags ...[2]stri
 		"position": float64(0), "nsfw": false, "default_forum_layout": float64(0),
 		"default_thread_rate_limit_per_user": float64(0), "available_tags": wire,
 	}
+}
+
+// seedOverwrites replaces a channel's live permission_overwrites out of band,
+// standing in for a change made by hand in the Discord client (or a fixture for
+// a channel that already has some).
+func (m *mockDiscord) seedOverwrites(channelID string, overwrites ...permissionOverwrite) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	wire := make([]any, 0, len(overwrites))
+	for _, o := range overwrites {
+		wire = append(wire, map[string]any{"id": o.ID, "type": float64(o.Type), "allow": o.Allow, "deny": o.Deny})
+	}
+	m.channels[channelID]["permission_overwrites"] = wire
+}
+
+// channelOverwrites reads back a channel's live permission_overwrites.
+func (m *mockDiscord) channelOverwrites(channelID string) []permissionOverwrite {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []permissionOverwrite
+	raw, _ := json.Marshal(m.channels[channelID]["permission_overwrites"])
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+// lastChannelPost returns the body of the most recent create-channel request.
+func (m *mockDiscord) lastChannelPost() map[string]any {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.channelPosts) == 0 {
+		return nil
+	}
+	return m.channelPosts[len(m.channelPosts)-1]
+}
+
+// channelIDByName finds a live channel by name, for tests that need its id
+// before the state exists (to seed it out of band).
+func (m *mockDiscord) channelIDByName(name string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, a := range m.channels {
+		if n, _ := a["name"].(string); n == name {
+			return id
+		}
+	}
+	return ""
 }
 
 // setChannelFlags overwrites a channel's live flags bitfield, standing in for a
@@ -705,7 +752,14 @@ func (m *mockDiscord) serveChannelsCollection(w http.ResponseWriter, r *http.Req
 			"bitrate": float64(0), "user_limit": float64(0),
 			"default_thread_rate_limit_per_user": float64(0),
 		}
-		for k, v := range decodeObject(r) {
+		body := decodeObject(r)
+		// Deep copy: body is merged into attrs below and later mutated by the mock.
+		sent := map[string]any{}
+		if raw, err := json.Marshal(body); err == nil {
+			_ = json.Unmarshal(raw, &sent)
+		}
+		m.channelPosts = append(m.channelPosts, sent)
+		for k, v := range body {
 			attrs[k] = v
 		}
 		m.assignForumTagIDs(nil, attrs)
@@ -751,6 +805,7 @@ func (m *mockDiscord) serveChannelItem(w http.ResponseWriter, r *http.Request, i
 	case http.MethodPatch:
 		body := decodeObject(r)
 		// Snapshot what was sent before the tag ids below are filled in.
+		// Deep copy: body is merged into attrs below and later mutated by the mock.
 		sent := map[string]any{}
 		if raw, err := json.Marshal(body); err == nil {
 			_ = json.Unmarshal(raw, &sent)

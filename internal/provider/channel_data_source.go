@@ -26,14 +26,15 @@ type channelDataSource struct {
 }
 
 type channelDataSourceModel struct {
-	ChannelID types.String `tfsdk:"channel_id"`
-	ServerID  types.String `tfsdk:"server_id"`
-	Name      types.String `tfsdk:"name"`
-	Type      types.Int64  `tfsdk:"type"`
-	Topic     types.String `tfsdk:"topic"`
-	NSFW      types.Bool   `tfsdk:"nsfw"`
-	Position  types.Int64  `tfsdk:"position"`
-	Category  types.String `tfsdk:"category"`
+	ChannelID   types.String `tfsdk:"channel_id"`
+	ServerID    types.String `tfsdk:"server_id"`
+	Name        types.String `tfsdk:"name"`
+	Type        types.Int64  `tfsdk:"type"`
+	Topic       types.String `tfsdk:"topic"`
+	NSFW        types.Bool   `tfsdk:"nsfw"`
+	Position    types.Int64  `tfsdk:"position"`
+	Category    types.String `tfsdk:"category"`
+	Permissions types.Object `tfsdk:"permissions"`
 }
 
 func (d *channelDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -44,14 +45,15 @@ func (d *channelDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Fetches a single Discord channel by id.",
 		Attributes: map[string]schema.Attribute{
-			"channel_id": schema.StringAttribute{MarkdownDescription: "Snowflake ID of the channel.", Required: true},
-			"server_id":  schema.StringAttribute{MarkdownDescription: "Snowflake ID of the guild the channel belongs to.", Computed: true},
-			"name":       schema.StringAttribute{MarkdownDescription: "Channel name.", Computed: true},
-			"type":       schema.Int64Attribute{MarkdownDescription: "Channel type id.", Computed: true},
-			"topic":      schema.StringAttribute{MarkdownDescription: "Channel topic.", Computed: true},
-			"nsfw":       schema.BoolAttribute{MarkdownDescription: "Whether the channel is marked NSFW.", Computed: true},
-			"position":   schema.Int64Attribute{MarkdownDescription: "Position of the channel.", Computed: true},
-			"category":   schema.StringAttribute{MarkdownDescription: "Snowflake ID of the parent category, if any.", Computed: true},
+			"channel_id":  schema.StringAttribute{MarkdownDescription: "Snowflake ID of the channel.", Required: true},
+			"server_id":   schema.StringAttribute{MarkdownDescription: "Snowflake ID of the guild the channel belongs to.", Computed: true},
+			"name":        schema.StringAttribute{MarkdownDescription: "Channel name.", Computed: true},
+			"type":        schema.Int64Attribute{MarkdownDescription: "Channel type id.", Computed: true},
+			"topic":       schema.StringAttribute{MarkdownDescription: "Channel topic.", Computed: true},
+			"nsfw":        schema.BoolAttribute{MarkdownDescription: "Whether the channel is marked NSFW.", Computed: true},
+			"position":    schema.Int64Attribute{MarkdownDescription: "Position of the channel.", Computed: true},
+			"category":    schema.StringAttribute{MarkdownDescription: "Snowflake ID of the parent category, if any.", Computed: true},
+			"permissions": channelPermissionsDataSourceAttribute(),
 		},
 	}
 }
@@ -88,6 +90,12 @@ func (d *channelDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	data.NSFW = types.BoolValue(a.NSFW)
 	data.Position = types.Int64Value(a.Position)
 	data.Category = types.StringPointerValue(a.ParentID)
+	perms, err := permissionsFromOverwrites(a.PermissionOverwrites)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to read Discord channel permissions", err.Error())
+		return
+	}
+	data.Permissions = perms
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
