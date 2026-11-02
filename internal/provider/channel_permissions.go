@@ -204,20 +204,22 @@ func sideMask(keys types.Set, bits types.String) (mask uint64, known bool) {
 
 func overwriteSideAttributes() map[string]schema.Attribute {
 	side := func(name string) (schema.SetAttribute, schema.StringAttribute) {
-		return schema.SetAttribute{
-				MarkdownDescription: "Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for (it stays valid if a later version names the bit). Either form may be set alone and the other is computed; if both are set they must be equivalent.",
-				ElementType:         types.StringType,
-				Optional:            true,
-				Computed:            true,
-				PlanModifiers:       []planmodifier.Set{partnerKeysModifier{partner: name + "_bits"}},
-				Validators:          []validator.Set{permissionKeysValidator{}},
-			}, schema.StringAttribute{
-				MarkdownDescription: "The `" + name + "` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.",
-				Optional:            true,
-				Computed:            true,
-				PlanModifiers:       []planmodifier.String{partnerBitsModifier{partner: name}},
-				Validators:          []validator.String{canonicalBitsValidator{}},
-			}
+		keys := schema.SetAttribute{
+			MarkdownDescription: "Permission keys (see `discord_permission`), or `unknown_<n>` for a bit the provider has no name for (it stays valid if a later version names the bit). Either form may be set alone and the other is computed; if both are set they must be equivalent.",
+			ElementType:         types.StringType,
+			Optional:            true,
+			Computed:            true,
+			PlanModifiers:       []planmodifier.Set{partnerKeysModifier{partner: name + "_bits"}},
+			Validators:          []validator.Set{permissionKeysValidator{}},
+		}
+		bits := schema.StringAttribute{
+			MarkdownDescription: "The `" + name + "` permissions as a decimal bitfield string. Either form may be set alone and the other is computed; if both are set they must be equivalent.",
+			Optional:            true,
+			Computed:            true,
+			PlanModifiers:       []planmodifier.String{partnerBitsModifier{partner: name}},
+			Validators:          []validator.String{canonicalBitsValidator{}},
+		}
+		return keys, bits
 	}
 	allow, allowBits := side("allow")
 	deny, denyBits := side("deny")
