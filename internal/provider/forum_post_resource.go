@@ -284,6 +284,6 @@ func (r *forumPostResource) readInto(ctx context.Context, m *forumPostResourceMo
 	if err := r.client.Get(ctx, channelPath(m.ID.ValueString())+"/messages/"+m.ID.ValueString(), &msg); err != nil {
 		return err
 	}
-	m.Content = types.StringValue(msg.Content)
+	m.Content = keepContent(m.Content, msg.Content)
 	return nil
 }

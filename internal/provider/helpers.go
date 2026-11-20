@@ -73,6 +73,20 @@ func keepTimestamp(current types.String, apiVal string) types.String {
 	return types.StringValue(apiVal)
 }
 
+// keepContent reconciles message content read back from the API with the value
+// already in state/config. Discord strips leading and trailing whitespace from
+// message content (a heredoc's final newline, say), which would otherwise make
+// every apply report an inconsistent result. If the current value differs from
+// the API value only by that whitespace, the current (config) value is kept;
+// otherwise the API value wins (real drift / import).
+func keepContent(current types.String, apiVal string) types.String {
+	if !current.IsNull() && !current.IsUnknown() &&
+		strings.TrimSpace(current.ValueString()) == strings.TrimSpace(apiVal) {
+		return current
+	}
+	return types.StringValue(apiVal)
+}
+
 // strPtrOrNil returns a *string for a tfsdk string, or nil when the value is null
 // or unknown — handy for JSON bodies where an absent field must serialise as null.
 func strPtrOrNil(s types.String) *string {

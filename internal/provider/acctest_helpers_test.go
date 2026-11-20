@@ -59,6 +59,9 @@ type mockDiscord struct {
 	// can assert on what the provider sent rather than on what landed in state.
 	channelPatches map[string][]map[string]any
 	channelPosts   []map[string]any
+	// messages holds message content by "channelID/messageID"; a forum post's
+	// starting message shares the thread's id.
+	messages map[string]string
 }
 
 func newMockDiscord(t *testing.T) *mockDiscord {
@@ -73,6 +76,7 @@ func newMockDiscord(t *testing.T) *mockDiscord {
 		invites:  map[string]map[string]any{},
 
 		channelPatches: map[string][]map[string]any{},
+		messages:       map[string]string{},
 	}
 	srv := httptest.NewServer(m)
 	t.Cleanup(srv.Close)
@@ -427,6 +431,10 @@ func (m *mockDiscord) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.serveChannelInvites(w, r, segs[1])
 	case len(segs) == 2 && segs[0] == "invites":
 		m.serveInviteItem(w, r, segs[1])
+	case len(segs) == 3 && segs[0] == "channels" && segs[2] == "threads":
+		m.serveForumThreads(w, r, segs[1])
+	case len(segs) == 4 && segs[0] == "channels" && segs[2] == "messages":
+		m.serveMessageItem(w, r, segs[1]+"/"+segs[3])
 	case len(segs) == 2 && segs[0] == "channels":
 		m.serveChannelItem(w, r, segs[1])
 	default:
@@ -819,6 +827,68 @@ func (m *mockDiscord) serveChannelItem(w http.ResponseWriter, r *http.Request, i
 	case http.MethodDelete:
 		delete(m.channels, id)
 		w.WriteHeader(http.StatusNoContent)
+	default:
+		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// serveForumThreads starts a post in a forum channel: a thread whose starting
+// message shares its id. Like Discord, the message content is stored with leading
+// and trailing whitespace stripped.
+func (m *mockDiscord) serveForumThreads(w http.ResponseWriter, r *http.Request, forumID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := m.channels[forumID]; !ok {
+		http.Error(w, `{"message":"Unknown Channel","code":10003}`, http.StatusNotFound)
+		return
+	}
+	body := decodeObject(r)
+	id := m.id()
+	autoArchive, ok := body["auto_archive_duration"]
+	if !ok {
+		autoArchive = float64(4320)
+	}
+	tags, _ := body["applied_tags"].([]any)
+	if tags == nil {
+		tags = []any{}
+	}
+	a := map[string]any{
+		"id": id, "parent_id": forumID, "type": float64(11), "name": body["name"],
+		"rate_limit_per_user": float64(0), "flags": float64(0), "applied_tags": tags,
+		"thread_metadata": map[string]any{
+			"archived": false, "locked": false, "auto_archive_duration": autoArchive,
+		},
+	}
+	if v, ok := body["rate_limit_per_user"]; ok {
+		a["rate_limit_per_user"] = v
+	}
+	m.channels[id] = a
+	msg, _ := body["message"].(map[string]any)
+	content, _ := msg["content"].(string)
+	m.messages[id+"/"+id] = strings.TrimSpace(content)
+	writeJSON(w, http.StatusCreated, a)
+}
+
+// serveMessageItem reads or edits a message; an edit strips the content's
+// leading and trailing whitespace, as Discord does.
+func (m *mockDiscord) serveMessageItem(w http.ResponseWriter, r *http.Request, key string) {
+	content, ok := m.messages[key]
+	if !ok {
+		http.Error(w, `{"message":"Unknown Message","code":10008}`, http.StatusNotFound)
+		return
+	}
+	id := key[strings.LastIndex(key, "/")+1:]
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]any{"id": id, "content": content})
+	case http.MethodPatch:
+		if v, ok := decodeObject(r)["content"].(string); ok {
+			content = strings.TrimSpace(v)
+			m.messages[key] = content
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": id, "content": content})
 	default:
 		http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
 	}
