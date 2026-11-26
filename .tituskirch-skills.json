@@ -14,7 +14,6 @@
     }
   ],
   "commit": {
-    "language": "en",
     "scopes": "auto"
   },
   "pr": {
@@ -25,15 +24,10 @@
   },
   "release": {
     "promote": "auto",
-    "stages": ["dev", "main"],
-    "timeout": 600
+    "stages": ["dev", "main"]
   },
   "mergeDeps": {
     "merge": "grouped"
-  },
-  "pruneBranches": {
-    "age": 90,
-    "protect": []
   },
   "issue": {
     "tracker": "github",
