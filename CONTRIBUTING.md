@@ -33,22 +33,23 @@ make build     # builds the provider binary
 
 ## Running the suite
 
-| Command          | What it does                              |
-| :--------------- | :---------------------------------------- |
-| `make build`     | Build the provider binary.                |
-| `make vet`       | `go vet ./...`.                           |
-| `make test`      | Go unit tests.                            |
-| `make testacc`   | Mock acceptance tests (no token needed).  |
-| `pnpm lint`      | oxlint across the repo.                   |
-| `pnpm format`    | oxfmt check across JS / JSON / YAML / MD. |
-| `pnpm check`     | Runs `lint` and `format`.                 |
-| `pnpm check:fix` | Auto-fix lint + format issues.            |
+| Command                       | What it does                              |
+| :---------------------------- | :---------------------------------------- |
+| `pnpm check && go test ./...` | **The gate** — run it before every push.  |
+| `make build`                  | Build the provider binary.                |
+| `make vet`                    | `go vet ./...`.                           |
+| `make test`                   | Go unit tests.                            |
+| `make testacc`                | Mock acceptance tests (no token needed).  |
+| `pnpm lint`                   | oxlint across the repo.                   |
+| `pnpm format`                 | oxfmt check across JS / JSON / YAML / MD. |
+| `pnpm check`                  | Runs `lint` and `format`.                 |
+| `pnpm check:fix`              | Auto-fix lint + format issues.            |
 
 The same commands run in CI — keep them green before you push.
 
 ## Branching & PRs
 
-1. **Don't push directly to `main`.** Branch off `main` for every change.
+1. **Don't push directly to `main`.** Branch off `dev` for every change.
 2. **Conventional Commits required.** Commitlint enforces this on every commit. Examples:
    - `feat(role): add discord_role resource`
    - `fix(client): honour 429 retry_after`
@@ -63,12 +64,18 @@ The same commands run in CI — keep them green before you push.
 
 Husky runs the following on `git commit`:
 
-- **JS / JSON / YAML / MD** → `oxlint` + `oxfmt`
+- **JS** → `oxlint --fix` + `oxfmt`
+- **JSON / YAML / MD** → `oxfmt` (`README.md`, `docs/` and `CHANGELOG.md` are skipped)
+- **Commit message** → commitlint
 
 For Go, run `make fmt && make vet` before pushing — CI gofmt-checks, vets, builds and tests. If a hook fails, fix the issue and commit again. **Don't `--no-verify`** unless I explicitly ask.
 
 > [!TIP]
 > Run `pnpm check:fix` and `make fmt` before opening a PR — saves a CI cycle.
+
+## Releases
+
+release-please cuts versions, the changelog and tags on `main`; a push to `dev` opens the promotion PR into `main`. Only `feat` and `fix` commits produce a release.
 
 ## License
 
