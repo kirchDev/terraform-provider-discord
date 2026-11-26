@@ -16,7 +16,6 @@ An OpenTofu / Terraform provider for Discord guild infrastructure (`kirchdev/dis
 - **Never hand-edit `docs/`** — edit the schema descriptions in `internal/provider/` or the files in `examples/`, then run `make docs`. **Never hand-edit `CHANGELOG.md`** — release-please owns it.
 - **Never use `terraform-plugin-sdk/v2`** — it is only an indirect dependency; resources use `terraform-plugin-framework`.
 - **Never `--no-verify`** — commitlint (Conventional Commits) and lint-staged run on every commit.
-- **Never add message-content resources** — the scope is guild infrastructure; there is no `discord_message`.
 
 ## Traps
 
