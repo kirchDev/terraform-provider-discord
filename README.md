@@ -24,10 +24,10 @@ resource "discord_role" "moderators" {
 }
 ```
 
-Roles, channels, permission overwrites, members, webhooks and events declared in HCL and reconciled by OpenTofu — not clicked together in the Discord UI. One bot token manages every guild the bot is in. **Scope is guild infrastructure, not message content.**
+Roles, channels, permission overwrites, members, webhooks and events declared in HCL and reconciled by OpenTofu — not clicked together in the Discord UI. One bot token manages every guild the bot is in.
 
 > [!IMPORTANT]
-> **Pre-1.0 / beta.** Built from scratch against the Discord REST API (v10) with `terraform-plugin-framework`. The client honours Discord's rate limits; the schema and behaviour may still change — pin an exact version and test before relying on it.
+> **Pre-1.0 / beta.** Built from scratch against the Discord REST API (v10); the schema and behaviour may still change — pin an exact version and test before relying on it.
 
 ## 📦 Install & run
 
